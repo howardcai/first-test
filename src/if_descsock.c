@@ -18,46 +18,6 @@
 #include "sys.h"
 #include "if_descsock.h"
 
-// #include <mcp_enum_auto.h>
-
-// #include <local/sys/types.h>
-// #include <local/sys/bitset.h>
-// #include <local/sys/cpu.h>
-// #include <local/sys/debug.h>
-// #include <local/sys/def.h>
-// #include <local/sys/err.h>
-// #include <local/sys/device.h>
-// #include <local/sys/lib.h>
-// #include <local/sys/linker_set.h>
-// #include <local/sys/opt.h>
-// #include <local/sys/pagedir.h>
-// #include <local/netinet/ip_addr.h>
-// #include <local/sys/hudconf.h>
-// #include <local/sys/queue.h>
-// #include <local/sys/stats.h>
-// #include <local/sys/thread.h>
-// #include <local/sys/spin.h>
-// #include <local/sys/time.h>
-// #include <local/sys/timer.h>
-// #include <local/sys/tmstat.h>
-// #include <local/sys/tmm_cmp.h>
-// #include <local/sys/umem.h>
-// #include <local/sys/phys_mem.h>
-// #include <local/kern/sys.h>
-// #include <local/net/if.h>
-// #include <local/net/ifc.h>
-// #include <local/net/if_media.h>
-// #include <local/net/ifgroup.h>
-// #include <local/net/ifvlan.h>
-// #include <local/net/ethernet.h>
-// #include <local/net/packet.h>
-// #include <local/netinet/ip.h>
-// #include <local/netinet/proto.h>
-// #include <local/netinet/route.h>
-// #include <local/netinet/tcp_tso.h>
-// #include <local/netinet6/ip6.h>
-// #include <local/mcp/stats.h>
-
 
 
 /*

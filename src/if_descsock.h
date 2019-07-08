@@ -25,7 +25,6 @@
 #define DESCSOCK_QOS_FROM_QSEL(_qsel)   ((_qsel) >> 1)
 #define DESCSOCK_PATH_MAX           (256)
 
-
 #define DESCSOCK_DEBUG_PRINT 0
 #define DESCSOCK_DEBUGF(fmt, rest...) ({if(DESCSOCK_DEBUG_PRINT) { printf("%s():%d " fmt "\n", __FUNCTION__, __LINE__, ##rest); }})
 #define DESCSOCK_LOG(fmt, rest...) printf("descsock: " fmt "\n", ##rest);
