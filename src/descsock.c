@@ -14,11 +14,11 @@
 #include <stdlib.h>
 #include <sys/queue.h>
 
-#include "./sys/types.h"
-#include "./sys/sys.h"
-#include "./sys/fixed_queue.h"
+#include "sys/types.h"
+#include "sys/fixed_queue.h"
+#include "kern/sys.h"
 
-#include "./descsock.h"
+#include "descsock.h"
 
 
 
@@ -453,6 +453,7 @@ descsock_attach(f5dev_t dev)
     else {
         goto fail_early;
     }
+
 
     DESCSOCK_LOG("Attach as platform %s\n", hudconf.platform);
     if (descsock_config.force_ifname != NULL) {

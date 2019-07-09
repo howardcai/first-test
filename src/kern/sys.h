@@ -10,8 +10,8 @@
 #ifndef SYS_H
 #define SYS_H
 
-#include "./types.h"
-#include "./err.h"
+#include "../sys/types.h"
+#include "err.h"
 
 
 

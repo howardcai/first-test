@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -15,9 +16,29 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 
-#include "./types.h"
-#include "./err.h"
+#include "../sys/types.h"
+#include "err.h"
 
+enum {
+    FLAG_START=127,
+    FLAG_MEM_SIZE,
+    FLAG_PHYS_MEM,
+    FLAG_VIRT_MEM,
+    FLAG_QUEUE_SIZE,
+    FLAG_USE_HUGEPAGES,
+    FLAG_USE_TAP,
+    FLAG_DESCSOCK,
+};
+
+static const struct option long_options[] =
+{
+    {"memsize", 1, 0, FLAG_MEM_SIZE},
+    {"queuesize", 1, 0, FLAG_QUEUE_SIZE},
+    {"physmem", 0, 0, FLAG_PHYS_MEM},
+    {"virtmem", 0, 0, FLAG_VIRT_MEM},
+    {"tap", 0, 0, FLAG_USE_TAP},
+    {0, 0, 0, 0}
+};
 
 
 /*

@@ -65,5 +65,13 @@ struct packet {
     UINT32 len;
 };
 
+typedef struct {
+    char name[256];
+} f5dev_t;
+
+typedef struct {
+    char name[256];
+}f5device_t;
+
 
 #endif /* _TYPES_H */
