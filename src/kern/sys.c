@@ -17,7 +17,17 @@
 #include <errno.h>
 
 #include "../sys/types.h"
+#include "../sys/hudconf.h"
 #include "err.h"
+
+struct hudconf hudconf = {
+    .memsize = 0,
+    .queue_size = 0,
+    .physmem = FALSE,
+    .virtmem = FALSE,
+    .use_tap = FALSE,
+    .hugepages_path = "/run/hugepages/",
+};
 
 enum {
     FLAG_START=127,
@@ -27,20 +37,74 @@ enum {
     FLAG_QUEUE_SIZE,
     FLAG_USE_HUGEPAGES,
     FLAG_USE_TAP,
-    FLAG_DESCSOCK,
 };
 
 static const struct option long_options[] =
 {
     {"memsize", 1, 0, FLAG_MEM_SIZE},
     {"queuesize", 1, 0, FLAG_QUEUE_SIZE},
+    {"hugepages", 1, 0, FLAG_USE_HUGEPAGES},
     {"physmem", 0, 0, FLAG_PHYS_MEM},
     {"virtmem", 0, 0, FLAG_VIRT_MEM},
     {"tap", 0, 0, FLAG_USE_TAP},
     {0, 0, 0, 0}
 };
 
+/*
+ * System paramter list (from invocation).
+ */
+int sys_argc;
+char **sys_argv;
 
+static err_t
+sys_hudconf_init(void)
+{
+    int c;
+
+    do {
+        c = getopt_long(sys_argc, sys_argv, 0, long_options, NULL);
+        switch(c) {
+            case FLAG_MEM_SIZE:
+
+                break;
+            case FLAG_USE_HUGEPAGES:
+
+                break;
+            case FLAG_QUEUE_SIZE:
+
+                break;
+            case FLAG_PHYS_MEM:
+
+                break;
+            case FLAG_VIRT_MEM:
+
+                break;
+            case FLAG_USE_TAP:
+
+                break;
+            default:
+                printf("Error optargs\n");
+                break;
+        }
+
+
+    } while(c != -1);
+}
+
+void usage(void)
+{
+    const char *unix_usage =
+        "usage:\n"
+        "   --memsize=<size>                        mem size\n"
+        "   --queuesize=<size>                      queue size\n"
+        "   --physmem                               use physical addresses for mem pool\n"
+        "   --virtmem                               use virtual addesses for mem pool\n"
+        "   --tap                                   use a tap interface\n"
+        "   --hugepages=</path/to/hugepages>        use hugepages\n"
+        "";
+
+    printf(unix_usage);
+}
 /*
  * Warning:  This function performs a potentially blocking ioctl() system call.
  */
