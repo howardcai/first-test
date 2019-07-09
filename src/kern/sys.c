@@ -14,6 +14,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/ioctl.h>
+#include <sys/epoll.h>
 #include <errno.h>
 
 #include "../sys/types.h"
@@ -41,12 +42,12 @@ enum {
 
 static const struct option long_options[] =
 {
-    {"memsize", 1, 0, FLAG_MEM_SIZE},
-    {"queuesize", 1, 0, FLAG_QUEUE_SIZE},
-    {"hugepages", 1, 0, FLAG_USE_HUGEPAGES},
-    {"physmem", 0, 0, FLAG_PHYS_MEM},
-    {"virtmem", 0, 0, FLAG_VIRT_MEM},
-    {"tap", 0, 0, FLAG_USE_TAP},
+    {"memsize",     required_argument,  0, FLAG_MEM_SIZE},
+    {"queuesize",   required_argument,  0, FLAG_QUEUE_SIZE},
+    {"hugepages",   required_argument,  0, FLAG_USE_HUGEPAGES},
+    {"physmem",     no_argument,        0, FLAG_PHYS_MEM},
+    {"virtmem",     no_argument,        0, FLAG_VIRT_MEM},
+    {"tap",         no_argument,        0, FLAG_USE_TAP},
     {0, 0, 0, 0}
 };
 
@@ -57,51 +58,56 @@ GLOBALSET int sys_argc;
 GLOBALSET char **sys_argv;
 extern char *optarg;
 
-static err_t
+err_t
 sys_hudconf_init(void)
 {
     int c;
 
+    int long_idx  = 1;
     do {
 
-        c = getopt_long(sys_argc, sys_argv, 0, long_options, NULL);
+        c = getopt_long(sys_argc, sys_argv, "", long_options, &long_idx);
 
+        printf("c %d\n", c);
         switch(c) {
             case FLAG_MEM_SIZE:
                 hudconf.memsize = strtoul(optarg, NULL, 10);
                 // XXX: validate memsize
+                printf("memsize is %s\n", optarg);
                 break;
 
             case FLAG_USE_HUGEPAGES:
+                printf("hugepages path is %s\n", optarg);
                 hudconf.hugepages_path = strdup(optarg);
+
                 // XXX: Validate hugepages path exists
                 break;
 
             case FLAG_QUEUE_SIZE:
                 // XXX: Validate queue size is a power of two etc...
                 hudconf.queue_size = strtoul(optarg, NULL, 10);
+                printf("queuesize %d\n", hudconf.queue_size);
                 break;
 
             case FLAG_PHYS_MEM:
+                printf("using physmem\n");
                 hudconf.physmem = TRUE;
                 break;
 
             case FLAG_VIRT_MEM:
+                printf("using virt mem\n");
                 hudconf.virtmem = TRUE;
                 break;
 
             case FLAG_USE_TAP:
                 hudconf.use_tap = TRUE;
                 break;
-
-            default:
-                printf("Error optargs\n\n");
-                usage();
-                break;
         }
 
 
     } while(c != -1);
+
+    return ERR_OK;
 }
 
 void usage(void)
@@ -428,9 +434,13 @@ descsock_get_basename(char *path)
     return basename(path);
 }
 
-int main(int argc, char *arvc[])
+int main(int argc, char *argv[])
 {
 
+    sys_argv = argv;
+    sys_argc = argc;
+
+    sys_hudconf_init();
 
     return EXIT_SUCCESS;
 }
