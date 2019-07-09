@@ -9,6 +9,7 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#define GLOBALSET
 /*
  * TMM types
  */

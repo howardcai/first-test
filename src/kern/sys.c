@@ -20,7 +20,7 @@
 #include "../sys/hudconf.h"
 #include "err.h"
 
-struct hudconf hudconf = {
+GLOBALSET struct hudconf hudconf = {
     .memsize = 0,
     .queue_size = 0,
     .physmem = FALSE,
@@ -53,8 +53,9 @@ static const struct option long_options[] =
 /*
  * System paramter list (from invocation).
  */
-int sys_argc;
-char **sys_argv;
+GLOBALSET int sys_argc;
+GLOBALSET char **sys_argv;
+extern char *optarg;
 
 static err_t
 sys_hudconf_init(void)
@@ -62,28 +63,40 @@ sys_hudconf_init(void)
     int c;
 
     do {
+
         c = getopt_long(sys_argc, sys_argv, 0, long_options, NULL);
+
         switch(c) {
             case FLAG_MEM_SIZE:
-
+                hudconf.memsize = strtoul(optarg, NULL, 10);
+                // XXX: validate memsize
                 break;
+
             case FLAG_USE_HUGEPAGES:
-
+                hudconf.hugepages_path = strdup(optarg);
+                // XXX: Validate hugepages path exists
                 break;
+
             case FLAG_QUEUE_SIZE:
-
+                // XXX: Validate queue size is a power of two etc...
+                hudconf.queue_size = strtoul(optarg, NULL, 10);
                 break;
+
             case FLAG_PHYS_MEM:
-
+                hudconf.physmem = TRUE;
                 break;
+
             case FLAG_VIRT_MEM:
-
+                hudconf.virtmem = TRUE;
                 break;
+
             case FLAG_USE_TAP:
-
+                hudconf.use_tap = TRUE;
                 break;
+
             default:
-                printf("Error optargs\n");
+                printf("Error optargs\n\n");
+                usage();
                 break;
         }
 

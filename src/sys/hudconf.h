@@ -20,7 +20,7 @@ struct hudconf {
     BOOL        physmem;
     BOOL        virtmem;
     BOOL        use_tap;
-    char        **hugepages_path;
+    char        *hugepages_path;
 };
 
 struct hudthread {
