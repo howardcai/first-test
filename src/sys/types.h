@@ -61,11 +61,6 @@ struct xfrag {
     UINT32 len;
 };
 
-struct packet {
-    void *addr;
-    UINT32 len;
-};
-
 typedef struct {
     char name[256];
 } f5dev_t;

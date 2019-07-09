@@ -10,12 +10,19 @@
  *
  * $Id: //depot/tmos/core-ce-platform/tmm/dev/descsock/if_descsock.h#4 $
  */
+#include <stdint.h>
+#include <stdio.h>
 
+#include "sys/types.h"
+#include "sys/fixed_queue.h"
+#include "kern/err.h"
 
 #define DESCSOCK_POLL_USEC          (50)
 #define DESCSOCK_NOMINAL_BITRATE    (120000000000ULL)
 #define DESCSOCK_MAX_QOS_TIERS      (4)
 #define DESCSOCK_MTU                (1 << 13) /* 8K */
+
+
 
 /*
  * QoS selection TBD
@@ -217,11 +224,11 @@ struct descsock_tx {
 
 /* Device instance structure. */
 struct descsock_softc {
-    struct ifnet                ifnet;
-    struct ifmedia              ifmedia;
+   // struct ifnet                ifnet;
+    //struct ifmedia              ifmedia;
 
     /* Internal Implementation Fields */
-    struct timer_periodic       stats_timer;
+    //struct timer_periodic       stats_timer;
     int                         master_socket_fd;
     int                         sock_fd[DESCSOCK_MAX_QOS_TIERS * 2];
     int                         n_qos;

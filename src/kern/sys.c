@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <fcntl.h>
+#include <sys/uio.h>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -62,8 +63,8 @@ err_t
 sys_hudconf_init(void)
 {
     int c;
-
     int long_idx  = 1;
+
     do {
 
         c = getopt_long(sys_argc, sys_argv, "", long_options, &long_idx);
