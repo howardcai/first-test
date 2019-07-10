@@ -16,7 +16,7 @@ struct packet {
     BOOL locked;
 };
 
-BOOL pakcet_check(struct packet *pkt);
+BOOL packet_check(struct packet *pkt);
 
 void packet_free(struct packet *pkt);
 

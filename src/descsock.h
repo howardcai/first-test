@@ -257,9 +257,9 @@ struct descsock_softc {
 /*
  * device interface functions
  */
-static BOOL descsock_probe(f5dev_t dev);
-static f5device_t *descsock_attach(f5dev_t dev);
-static void descsock_detach(f5device_t *devp);
+BOOL descsock_probe(f5dev_t dev);
+f5device_t *descsock_attach(f5dev_t dev);
+void descsock_detach(f5device_t *devp);
 BOOL descsock_poll(struct dev_poll_param *param, f5device_t *devp);
 
 /*
@@ -268,6 +268,13 @@ BOOL descsock_poll(struct dev_poll_param *param, f5device_t *devp);
 // static err_t descsock_ifup(struct ifnet *ifp);
 // static err_t descsock_ifdown(struct ifnet *ifp);
 err_t descsock_ifoutput(struct ifnet *ifp, struct packet *pkt);
+
+struct descsock_softc* descsock_init(void);
+err_t descsock_setup(struct descsock_softc *sc);
+err_t descsock_send(struct descsock_softc *sc, void *buf);
+void *descsock_recv(struct descsock_softc *sc);
+err_t descsock_teardown(struct descsock_softc *sc);
+
 
 /* Forward declaration.  Actual struct only used in if_descsock.c */
 struct descsock_softc;

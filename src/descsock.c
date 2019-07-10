@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <sys/queue.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "sys/types.h"
 #include "sys/fixed_queue.h"
@@ -98,7 +99,9 @@ err_t descsock_teardown(struct descsock_softc *sc);
 
 struct descsock_softc* descsock_init(void)
 {
-    return NULL;
+    struct descsock_softc *sc = malloc(sizeof(struct descsock_softc));
+
+    return sc;
 }
 err_t descsock_setup(struct descsock_softc *sc)
 {
@@ -114,6 +117,9 @@ void *descsock_recv(struct descsock_softc *sc)
 }
 err_t descsock_teardown(struct descsock_softc *sc)
 {
+    free(sc);
+
+
     return ERR_OK;
 }
 /*
@@ -831,7 +837,7 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
     struct packet *pkt;
     struct xfrag_item *xf;
 
-    struct ifnet *ifp = (struct ifnet *)devp;
+    //struct ifnet *ifp = (struct ifnet *)devp;
     //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
     struct descsock_softc *sc = NULL;
     laden_buf_desc_t *desc;
@@ -1189,7 +1195,7 @@ err_t
 descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
 {
     void *xfrag;
-    void *base;
+    void *base = NULL;
     empty_buf_desc_t *producer_desc;
     empty_desc_fifo_t *fifo = &sc->rx_queue.outbound_descriptors[tier];
 
@@ -1321,7 +1327,7 @@ descsock_tx_single_desc_pkt(struct descsock_softc * sc, struct packet *pkt, UINT
     void *xdata = NULL;
     UINT16 xdata_len = 0;
     UINT16 vlan_tag = 0;
-    err_t err;
+    err_t err = ERR_OK;
     tx_completions_ctx_t *clean_ctx;
     laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
     laden_buf_desc_t *send_desc = (laden_buf_desc_t *)&tx_out_fifo->c[tx_out_fifo->prod_idx];

@@ -9,5 +9,10 @@ all: descsock_lib
 
 
 
-descsock_lib: $(SRC_DIR)/if_descsock.c
-	gcc -Wall $(SRC_DIR)/if_descsock.c
+descsock_lib: tester.c $(SRC_DIR)/descsock.c $(SRC_DIR)/kern/sys.c $(SRC_DIR)/net/packet.c $(SRC_DIR)/net/xfrag_mem.c
+	gcc -Wall tester.c $(SRC_DIR)/descsock.c $(SRC_DIR)/kern/sys.c $(SRC_DIR)/net/packet.c $(SRC_DIR)/net/xfrag_mem.c -o descsock_lib
+
+clean:
+	rm descsock_lib
+
+
