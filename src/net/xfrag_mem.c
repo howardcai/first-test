@@ -5,24 +5,33 @@
 
 #include "../sys/types.h"
 #include "../kern/sys.h"
+#include "xfrag_mem.h"
 
-struct xfrag_item {
-    SLIST_ENTRY(xfrag_item) next;
-    UINT64  addr;
-    UINT32  len;
-    BOOL    locked;
-};
 
-GLOBALSET SLIST_HEAD(buf_stack, xfrag_item) stack;
+
+GLOBALSET SLIST_HEAD(buf_stack, xfrag_item) xfrag_stack;
 
 void xfrag_pool_init(void)
 {
-    SLIST_INIT(&stack);
+    SLIST_INIT(&xfrag_stack);
+
+}
+
+void *xfrag_alloc(void)
+{
+    return NULL;
+}
+
+void xfrag_free(struct xfrag_item *xf)
+{
 
 }
 
 int main() {
 
 
+    xfrag_pool_init();
+
+    printf("Success\n");
     return EXIT_SUCCESS;
 }
