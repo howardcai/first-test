@@ -18,8 +18,9 @@
 
 
 
-void usage();
-err_t sys_hudconf_init(void);
+void sys_usage();
+
+err_t sys_hudconf_init(int sys_argc, char **sys_argv);
 
 /* non-blocking file/socket/pipe/serial I/O setting */
 err_t sys_set_non_blocking(int fd, int non_blocking);

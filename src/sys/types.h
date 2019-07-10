@@ -10,6 +10,7 @@
 #define TYPES_H
 
 #define GLOBALSET
+#define BUF_SIZE                2048
 /*
  * TMM types
  */

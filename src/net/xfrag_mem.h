@@ -13,7 +13,7 @@ struct xfrag_item {
 
 void xfrag_pool_init(void);
 
-void *xfrag_alloc(void);
+void* xfrag_alloc(void);
 
 void xfrag_free(struct xfrag_item *xf);
 

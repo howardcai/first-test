@@ -55,21 +55,19 @@ static const struct option long_options[] =
 /*
  * System paramter list (from invocation).
  */
-GLOBALSET int sys_argc;
-GLOBALSET char **sys_argv;
+// GLOBALSET int sys_argc;
+// GLOBALSET char **sys_argv;
 extern char *optarg;
 
 err_t
-sys_hudconf_init(void)
+sys_hudconf_init(int sys_argc, char **sys_argv)
 {
     int c;
     int long_idx  = 1;
 
     do {
-
         c = getopt_long(sys_argc, sys_argv, "", long_options, &long_idx);
 
-        printf("c %d\n", c);
         switch(c) {
             case FLAG_MEM_SIZE:
                 hudconf.memsize = strtoul(optarg, NULL, 10);
@@ -111,10 +109,11 @@ sys_hudconf_init(void)
     return ERR_OK;
 }
 
-void usage(void)
+void sys_usage(void)
 {
     const char *unix_usage =
-        "usage:\n"
+        "usage: ./descsock_lib --memsize=1024 --virtmem etc...\n"
+        "options\n"
         "   --memsize=<size>                        mem size\n"
         "   --queuesize=<size>                      queue size\n"
         "   --physmem                               use physical addresses for mem pool\n"

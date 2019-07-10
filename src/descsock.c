@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "sys/types.h"
+#include "sys/hudconf.h"
 #include "sys/fixed_queue.h"
 #include "kern/sys.h"
 #include "net/packet.h"
@@ -91,15 +92,31 @@ BOOL empty_desc_fifo_full(empty_desc_fifo_t *fifo);
 BOOL empty_desc_fifo_empty(empty_desc_fifo_t *fifo);
 int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
 
-struct descsock_softc* descsock_init(void);
 err_t descsock_setup(struct descsock_softc *sc);
+
 err_t descsock_send(struct descsock_softc *sc, void *buf);
+
 void *descsock_recv(struct descsock_softc *sc);
+
 err_t descsock_teardown(struct descsock_softc *sc);
 
-struct descsock_softc* descsock_init(void)
+struct descsock_softc* descsock_init(int argc, char *argv[])
 {
+    if(argc <= 1) {
+        sys_usage();
+        return NULL;
+    }
+
+    err_t err = sys_hudconf_init(argc, argv);
+    if(err != ERR_OK) {
+        printf("Error\n");
+
+        return NULL;
+    }
+
     struct descsock_softc *sc = malloc(sizeof(struct descsock_softc));
+
+    xfrag_pool_init();
 
     return sc;
 }
