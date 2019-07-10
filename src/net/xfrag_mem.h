@@ -6,7 +6,7 @@
 
 struct xfrag_item {
     SLIST_ENTRY(xfrag_item) next;
-    UINT64  addr;
+    void    *base;
     UINT32  len;
     BOOL    locked;
 };

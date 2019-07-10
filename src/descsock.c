@@ -13,11 +13,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/queue.h>
+#include <string.h>
 
 #include "sys/types.h"
 #include "sys/fixed_queue.h"
 #include "kern/sys.h"
 #include "net/packet.h"
+#include "net/xfrag_mem.h"
 
 #include "descsock.h"
 
@@ -88,7 +90,32 @@ BOOL empty_desc_fifo_full(empty_desc_fifo_t *fifo);
 BOOL empty_desc_fifo_empty(empty_desc_fifo_t *fifo);
 int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
 
+struct descsock_softc* descsock_init(void);
+err_t descsock_setup(struct descsock_softc *sc);
+err_t descsock_send(struct descsock_softc *sc, void *buf);
+void *descsock_recv(struct descsock_softc *sc);
+err_t descsock_teardown(struct descsock_softc *sc);
 
+struct descsock_softc* descsock_init(void)
+{
+    return NULL;
+}
+err_t descsock_setup(struct descsock_softc *sc)
+{
+    return ERR_OK;
+}
+err_t descsock_send(struct descsock_softc *sc, void *buf)
+{
+    return ERR_OK;
+}
+void *descsock_recv(struct descsock_softc *sc)
+{
+    return NULL;
+}
+err_t descsock_teardown(struct descsock_softc *sc)
+{
+    return ERR_OK;
+}
 /*
  * device configuration
  */
@@ -325,17 +352,17 @@ int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
  * true here unconditionally or use a command line flag like the shmx driver
  * does.
  */
-BOOL
-descsock_probe(f5dev_t dev)
-{
-    /*
-     * XXX: --descsock="virt,base_path=/foo/bar/baz,fakepci=ff:1f.0"
-     * parse pic card info here
-     * hardcode bus,slot func values for now
-     */
+// BOOL
+// descsock_probe(f5dev_t dev)
+// {
+//     /*
+//      * XXX: --descsock="virt,base_path=/foo/bar/baz,fakepci=ff:1f.0"
+//      * parse pic card info here
+//      * hardcode bus,slot func values for now
+//      */
 
-    return descsock_parse_config();
-}
+//     return descsock_parse_config();
+// }
 
 /* Bring up the driver */
 // static err_t
@@ -512,7 +539,7 @@ descsock_probe(f5dev_t dev)
 // fail_early:
 //     for (i = 0; i < array_size(sc->sock_fd); i++) {
 //         if (sc->sock_fd[i] >= 0) {
-//             close_file(sc->sock_fd[i]);
+//             close(sc->sock_fd[i]);
 //         }
 //     }
 
@@ -635,11 +662,11 @@ out:
 //     for(i = 0; i < NUM_TIERS; i++) {
 //         if (sys_set_non_blocking(sc->rx_queue.socket_fd[i], 1) != ERR_OK) {
 //             DESCSOCK_LOG("Error setting non_blocking on rx socket");
-//             sys_exit(-1);
+//             exit(-1);
 //         }
 //         if (sys_set_non_blocking(sc->tx_queue.socket_fd[i], 1) != ERR_OK) {
 //             DESCSOCK_LOG("Error setting non_blocking on tx socket");
-//             sys_exit(-1);
+//             exit(-1);
 //         }
 //     }
 //     DESCSOCK_LOG("Opened virtio ports successfully\n");
@@ -700,7 +727,7 @@ descsock_config_exchange(struct descsock_softc * sc, char * dmapath)
     err = descsock_recv_socket_conns(events[0].data.fd, sc->sock_fd);
     if(err != ERR_OK) {
         DESCSOCK_LOG("Failed to receive Rx, Tx sockets");
-        sys_exit(-1);
+        exit(-1);
     }
 
     /* Partition received sockets to our RX, TX arrays */
@@ -742,12 +769,12 @@ descsock_establish_dmaa_conn(void)
 //     return ERR_OK;
 // }
 
-void
-descsock_periodic_task(struct timer *timer, void *param)
-{
-    struct descsock_softc *sc = (struct descsock_softc *)param;
-    sc->timer_ticks++;
-}
+// void
+// descsock_periodic_task(struct timer *timer, void *param)
+// {
+//     struct descsock_softc *sc = (struct descsock_softc *)param;
+//     sc->timer_ticks++;
+// }
 
 /*
  * Remove device from TMM
@@ -776,15 +803,15 @@ descsock_close_fds(struct descsock_softc *sc)
 {
     int i;
 
-    close_file(sc->master_socket_fd);
+    close(sc->master_socket_fd);
 
     for(i = 0; i < NUM_TIERS; i++) {
         if(sc->rx_queue.socket_fd[i] > 0) {
-            close_file(sc->rx_queue.socket_fd[i]);
+            close(sc->rx_queue.socket_fd[i]);
         }
 
         if(sc->tx_queue.socket_fd[i] > 0) {
-            close_file(sc->tx_queue.socket_fd[i]);
+            close(sc->tx_queue.socket_fd[i]);
         }
     }
 }
@@ -802,7 +829,7 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
     err_t err;
     int tier, avail, flushed_bytes;
     struct packet *pkt;
-    struct xfrag *xf;
+    struct xfrag_item *xf;
 
     struct ifnet *ifp = (struct ifnet *)devp;
     //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
@@ -889,12 +916,12 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
             /* XXX: add support to Rx a multi-desc packet */
             if(!desc->eop) {
                 DESCSOCK_LOG("Jumbo frame are not accepted yet");
-                sys_exit(-1);
+                exit(-1);
             }
 
             /* XXX: Remove later */
            // descsock_print_pkt(pkt);
-            ifinput(ifp, pkt);
+            //ifinput(ifp, pkt);
 
             work++;
             sc->stats.pkt_rx++;
@@ -1172,7 +1199,8 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
     rx_extra_fifo_t *extra_fifo = &sc->rx_queue.pkt_extras[tier];
     rx_extra_t *ex;
 
-    xfrag = packet_data_newfrag(&base);
+    //xfrag = packet_data_newfrag(&base);
+    xfrag = xfrag_alloc();
     if(xfrag == NULL) {
         DESCSOCK_LOG("xfrag returned null\n");
         return ERR_BUF;
@@ -1182,7 +1210,7 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
     producer_desc = (empty_buf_desc_t *)&fifo->c[fifo->prod_idx];
     if(producer_desc == NULL) {
         DESCSOCK_LOG("NULL desc\n");
-        sys_exit(-1);
+        exit(-1);
     }
     ex = (rx_extra_t *)&extra_fifo->extra[produce_buf_idx];
 
@@ -1192,7 +1220,7 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
     }
     else {
         /* Use guest physical addresses for tmm padc*/
-        producer_desc->addr = vtophys(base);
+        //producer_desc->addr = vtophys(base);
     }
 
     producer_desc->len = BUF_SIZE;
@@ -1270,7 +1298,7 @@ descsock_ifoutput(struct ifnet *ifp, struct packet *pkt)
         /*
          * Handle multi frag packet for Tx
          */
-        err = descsock_tx_multi_desc_pkt(sc, pkt, tier);
+        //err = descsock_tx_multi_desc_pkt(sc, pkt, tier);
 
         sc->stats.pkt_tx += (err == ERR_OK)? 1 : 0;
         sc->stats.tx_jumbos += (err == ERR_OK)? 1 : 0;
@@ -1290,7 +1318,7 @@ err_t
 descsock_tx_single_desc_pkt(struct descsock_softc * sc, struct packet *pkt, UINT32 tier)
 {
 
-    void *xdata;
+    void *xdata = NULL;
     UINT16 xdata_len = 0;
     UINT16 vlan_tag = 0;
     err_t err;
@@ -1299,14 +1327,14 @@ descsock_tx_single_desc_pkt(struct descsock_softc * sc, struct packet *pkt, UINT
     laden_buf_desc_t *send_desc = (laden_buf_desc_t *)&tx_out_fifo->c[tx_out_fifo->prod_idx];
 
     /* Get buf data from packet */
-    xdata = xfrag_getptrlen(packet_data_firstfrag(pkt), &xdata_len);
+    //xdata = xfrag_getptrlen(packet_data_firstfrag(pkt), &xdata_len);
 
     /* tmm-padc or tmm-madc */
     if(sc->mode == MADC_MODE) {
         send_desc->addr = (UINT64)xdata;
     }
     else if(sc->mode == PADC_MODE) {
-        send_desc->addr = vtophys(xdata);
+        //send_desc->addr = vtophys(xdata);
     }
 
     send_desc->len = xdata_len;
@@ -1316,13 +1344,13 @@ descsock_tx_single_desc_pkt(struct descsock_softc * sc, struct packet *pkt, UINT
 
     /* Check for vlan tag */
     /* Hack get a DID from a vlan tag */
-    err = descsock_get_vlantag(pkt, &vlan_tag);
+    //err = descsock_get_vlantag(pkt, &vlan_tag);
     if(err == ERR_OK) {
         if(sc->descsock_l2_override) {
             send_desc->did = DESCSOCK_SET_DID(vlan_tag);
             /* Set the DIR flag in descriptor */
             send_desc->flags |= (1 << 8);
-            vlan_insert_tag(pkt, vlan_tag, TRUE);
+            //vlan_insert_tag(pkt, vlan_tag, TRUE);
             /* descsock_print_pkt(pkt); */
         }
     }
@@ -1773,3 +1801,12 @@ empty_desc_fifo_full(empty_desc_fifo_t *fifo)
     int avail = empty_desc_fifo_avail(fifo);
     return (avail == 0);
 }
+
+// int main(int argc, char *argv[])
+// {
+
+//     printf("descsock compile is good\n");
+
+
+//     return EXIT_SUCCESS;
+// }

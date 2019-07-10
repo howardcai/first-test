@@ -435,13 +435,13 @@ descsock_get_basename(char *path)
     return basename(path);
 }
 
-int main(int argc, char *argv[])
-{
+// int main(int argc, char *argv[])
+// {
 
-    sys_argv = argv;
-    sys_argc = argc;
+//     sys_argv = argv;
+//     sys_argc = argc;
 
-    sys_hudconf_init();
+//     sys_hudconf_init();
 
-    return EXIT_SUCCESS;
-}
+//     return EXIT_SUCCESS;
+// }

@@ -69,5 +69,12 @@ typedef struct {
     char name[256];
 }f5device_t;
 
+struct dev_poll_param {
+    char name[256];
+};
+
+struct ifnet {
+    char name[256];
+};
 
 #endif /* _TYPES_H */

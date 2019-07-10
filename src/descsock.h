@@ -12,6 +12,7 @@
  */
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/epoll.h>
 
 #include "sys/types.h"
 #include "sys/fixed_queue.h"
@@ -53,29 +54,29 @@
 #define DESCSOCK_FLAG_RUNTIME_DEBUG (4)
 #define DESCSOCK_FLAG_FAKE_PCI      (8)
 
-#define EPOLLIN 0x001
-/* Valid opcodes ( "op" parameter ) to issue to epoll_ctl().  */
-#define EPOLL_CTL_ADD 1	/* Add a file descriptor to the interface.  */
-#define EPOLL_CTL_DEL 2	/* Remove a file descriptor from the interface.  */
-#define EPOLL_CTL_MOD 3	/* Change file descriptor epoll_event structure.  */
+// #define EPOLLIN 0x001
+// /* Valid opcodes ( "op" parameter ) to issue to epoll_ctl().  */
+// #define EPOLL_CTL_ADD 1	/* Add a file descriptor to the interface.  */
+// #define EPOLL_CTL_DEL 2	/* Remove a file descriptor from the interface.  */
+// #define EPOLL_CTL_MOD 3	/* Change file descriptor epoll_event structure.  */
 
 /* To store bufs when reading and writting to sockets*/
-struct iovec {
-    void *iov_base;	/* Pointer to data.  */
-    UINT64 iov_len;	/* Length of data.  */
-};
+// struct iovec {
+//     void *iov_base;	/* Pointer to data.  */
+//     UINT64 iov_len;	/* Length of data.  */
+// };
 
-typedef union epoll_data {
-  void *ptr;
-  int fd;
-  uint32_t u32;
-  uint64_t u64;
-} epoll_data_t;
+// typedef union epoll_data {
+//   void *ptr;
+//   int fd;
+//   uint32_t u32;
+//   uint64_t u64;
+// } epoll_data_t;
 
-struct epoll_event {
-  uint32_t events;	/* Epoll events */
-  epoll_data_t data;	/* User data variable */
-};
+// struct epoll_event {
+//   uint32_t events;	/* Epoll events */
+//   epoll_data_t data;	/* User data variable */
+// };
 
 typedef enum {
     RX_RET    = 1,
@@ -259,14 +260,14 @@ struct descsock_softc {
 static BOOL descsock_probe(f5dev_t dev);
 static f5device_t *descsock_attach(f5dev_t dev);
 static void descsock_detach(f5device_t *devp);
-static BOOL descsock_poll(struct dev_poll_param *param, f5device_t *devp);
+BOOL descsock_poll(struct dev_poll_param *param, f5device_t *devp);
 
 /*
  * ifnet interface functions
  */
-static err_t descsock_ifup(struct ifnet *ifp);
-static err_t descsock_ifdown(struct ifnet *ifp);
-static err_t descsock_ifoutput(struct ifnet *ifp, struct packet *pkt);
+// static err_t descsock_ifup(struct ifnet *ifp);
+// static err_t descsock_ifdown(struct ifnet *ifp);
+err_t descsock_ifoutput(struct ifnet *ifp, struct packet *pkt);
 
 /* Forward declaration.  Actual struct only used in if_descsock.c */
 struct descsock_softc;

@@ -11,6 +11,7 @@
 #define SYS_H
 
 #include <sys/uio.h>
+#include <sys/epoll.h>
 
 #include "../sys/types.h"
 #include "err.h"

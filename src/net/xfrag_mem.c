@@ -27,11 +27,11 @@ void xfrag_free(struct xfrag_item *xf)
 
 }
 
-int main() {
+// int main() {
 
 
-    xfrag_pool_init();
+//     xfrag_pool_init();
 
-    printf("Success\n");
-    return EXIT_SUCCESS;
-}
+//     printf("Success\n");
+//     return EXIT_SUCCESS;
+// }
