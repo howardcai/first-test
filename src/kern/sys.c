@@ -72,6 +72,7 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
         switch(c) {
             case FLAG_MEM_SIZE:
                 hudconf.memsize = strtoul(optarg, NULL, 10);
+                hudconf.dma_seg_size = hudconf.memsize;
                 // XXX: validate memsize
                 printf("memsize is %s\n", optarg);
                 break;
@@ -122,7 +123,7 @@ void sys_usage()
     const char *unix_usage =
         "usage: ./descsock_lib --memsize=1024 --virtmem etc...\n"
         "options\n"
-        "   --memsize=<size>                        mem size\n"
+        "   --memsize=<size>                        mem size in mb\n"
         "   --queuesize=<size>                      queue size\n"
         "   --physmem                               use physical addresses for mem pool\n"
         "   --virtmem                               use virtual addesses for mem pool\n"

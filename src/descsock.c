@@ -94,14 +94,17 @@ int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
 
 err_t descsock_setup(struct descsock_softc *sc);
 
-err_t descsock_send(struct descsock_softc *sc, void *buf);
+int descsock_send(struct descsock_softc *sc, void *buf);
+static int descsock_ifoutput2(struct descsock_softc *sc, void *buf);
 
-void *descsock_recv(struct descsock_softc *sc);
+int descsock_recv(struct descsock_softc *sc);
 
 err_t descsock_teardown(struct descsock_softc *sc);
 
 struct descsock_softc* descsock_init(int argc, char *argv[])
 {
+    char msg[DESCSOCK_PATH_MAX];
+
     if(argc <= 1) {
         sys_usage();
         return NULL;
@@ -114,22 +117,40 @@ struct descsock_softc* descsock_init(int argc, char *argv[])
 
     struct descsock_softc *sc = malloc(sizeof(struct descsock_softc));
 
+    snprintf(msg, DESCSOCK_PATH_MAX, "path=%s\nbase=%llu\nlength=%d\nnum_sep=1\npid=1\nsvc_ids=1\n\n",
+             hudconf.hugepages_path, (UINT64)hudconf.dma_seg_base, hudconf.dma_seg_size);
+
+    descsock_config_exchange(sc, msg);
+
     xfrag_pool_init();
 
     return sc;
 }
+
+static int
+descsock_ifoutput2(struct descsock_softc *sc, void *buf)
+{
+    return 0;
+}
+
 err_t descsock_setup(struct descsock_softc *sc)
 {
     return ERR_OK;
 }
-err_t descsock_send(struct descsock_softc *sc, void *buf)
+
+int descsock_send(struct descsock_softc *sc, void *buf)
 {
-    return ERR_OK;
+    printf("Sending buf\n");
+    int ret = descsock_ifoutput2(sc, buf);
+
+    return ret;
 }
-void *descsock_recv(struct descsock_softc *sc)
+
+int descsock_recv(struct descsock_softc *sc)
 {
-    return NULL;
+    return 0;
 }
+
 err_t descsock_teardown(struct descsock_softc *sc)
 {
     free(sc);

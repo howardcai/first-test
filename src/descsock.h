@@ -274,9 +274,9 @@ struct descsock_softc* descsock_init(int argc, char *argv[]);
 
 err_t descsock_setup(struct descsock_softc *sc);
 
-err_t descsock_send(struct descsock_softc *sc, void *buf);
+int descsock_send(struct descsock_softc *sc, void *buf);
 
-void *descsock_recv(struct descsock_softc *sc);
+int descsock_recv(struct descsock_softc *sc);
 
 err_t descsock_teardown(struct descsock_softc *sc);
 

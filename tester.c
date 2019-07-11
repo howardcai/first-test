@@ -29,6 +29,7 @@ int main(int argc, char *argv[]) {
 
     prep_dummypkt(buf->base);
 
+    descsock_send(sc, buf->base);
 
 
 
@@ -62,9 +63,9 @@ void prep_dummypkt(void *buf_base)
 }
 uint16_t chksum(uint16_t *buf, int nwords)
 {
-        unsigned long sum;
+        uint64_t sum;
 
-        for(sum=0; nwords>0; nwords--) {
+        for(sum = 0; nwords > 0; nwords--) {
              sum += *buf++;
         }
 

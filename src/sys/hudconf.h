@@ -15,12 +15,16 @@
 #define STANDALONE_TRANSPORT (1 << 1)
 
 struct hudconf {
-    UINT32      memsize;
+    UINT64      memsize;
     UINT32      queue_size;
     BOOL        physmem;
     BOOL        virtmem;
     BOOL        use_tap;
     char        *hugepages_path;
+    void        *dma_seg_base;
+    UINT64      dma_seg_size;
+    UINT32      num_seps;
+    UINT32      svc_ids;
 };
 
 struct hudthread {
