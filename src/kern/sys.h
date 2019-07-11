@@ -16,6 +16,18 @@
 #include "../sys/types.h"
 #include "err.h"
 
+#define PAGE_SHIFT                  (12)
+#define PAGE_SIZE                   (1 << PAGE_SHIFT)
+#define PAGE_MASK                   (PAGE_SIZE - 1)
+
+#define HUGE_2M_SHIFT               (21)
+#define HUGE_2M_SIZE                (1 << HUGE_2M_SHIFT)
+#define HUGE_2M_MASK                (HUGE_2M_SIZE - 1)
+
+#define HUGE_1G_SHIFT               (30)
+#define HUGE_1G_SIZE                (1 << HUGE_1G_SHIFT)
+#define HUGE_1G_MASK                (HUGE_1G_SIZE - 1)
+
 
 
 void sys_usage(void);

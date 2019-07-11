@@ -116,17 +116,84 @@ struct descsock_softc* descsock_init(int argc, char *argv[])
     }
 
     struct descsock_softc *sc = malloc(sizeof(struct descsock_softc));
-
-    snprintf(msg, DESCSOCK_PATH_MAX, "path=%s\nbase=%llu\nlength=%d\nnum_sep=1\npid=1\nsvc_ids=1\n\n",
-             hudconf.hugepages_path, (UINT64)hudconf.dma_seg_base, hudconf.dma_seg_size);
-
-    descsock_config_exchange(sc, msg);
+    descsock_init_tmmmadc(sc);
 
     xfrag_pool_init();
 
     return sc;
 }
+/*
+ * Init modular tmm,
+ * send registration message containing this tmm's memory info and number of SEP requests
+ */
+err_t
+descsock_init_tmmmadc(struct descsock_softc *sc)
+{
+    /* Get the information where tmm stores its memory */
+    err_t err = ERR_OK;
+    char msg[DESCSOCK_PATH_MAX];
+    int i;
 
+    /* Concatenate descsock.000 to path string to create hugepages path mount */
+    snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000", hudconf.hugepages_path);
+
+    /* Save hugepages mount info  */
+    snprintf(sc->dma_region.path, DESCSOCK_PATH_MAX, "%s", msg);
+    sc->dma_region.len = hudconf.dma_seg_size;
+
+    /* try mmaping the passed in hugepages path */
+    sc->dma_region.base = descsock_map_dmaregion(sc->dma_region.path, hudconf.dma_seg_size);
+    if(sc->dma_region.base == NULL) {
+        printf("Failed to map hugepages\n");
+        exit(EXIT_FAILURE);
+    }
+
+    snprintf(msg, DESCSOCK_PATH_MAX, "path=%s\nbase=%llu\nlength=%llu\nnum_sep=1\npid=1\nsvc_ids=1\n\n",
+             sc->dma_region.path, (UINT64)sc->dma_region.base, sc->dma_region.len);
+
+    printf("%s\n", msg);
+    exit(EXIT_SUCCESS);
+    descsock_config_exchange(sc, msg);
+
+    /* call the master socket here */
+    sc->master_socket_fd = descsock_establish_dmaa_conn();
+    if(sc->master_socket_fd < 0) {
+        DESCSOCK_LOG("\ndescsock: Failed to connect to master socket\n");
+        err = ERR_CONN;
+        goto out;
+    }
+    DESCSOCK_LOG("recived master socket %d\n", sc->master_socket_fd);
+
+    snprintf(msg, DESCSOCK_PATH_MAX, "path=%s\nbase=%llu\nlength=%d\nnum_sep=1\npid=1\nsvc_ids=1\n\n",
+            sc->tmm_driver_mem->name, (UINT64)sc->tmm_driver_mem->base, sc->tmm_driver_mem->length);
+
+    DESCSOCK_LOG("Sending msg to DMAA %s", msg);
+
+    /* Send dma region path info to DMA AGENT */
+    err = descsock_config_exchange(sc, msg);
+    if (err != ERR_OK) {
+        DESCSOCK_LOG("---- failed to write dma region to dmaa\n");
+        err = ERR_CONN;
+        goto out;
+    }
+
+    /* Set non-blocking on all TX, RX sockets */
+    for(i = 0; i < NUM_TIERS; i++) {
+        if (sys_set_non_blocking(sc->rx_queue.socket_fd[i], 1) != ERR_OK) {
+            DESCSOCK_LOG("Error setting non_blocking on rx socket");
+            err = ERR_MEM;
+            goto out;
+        }
+        if (sys_set_non_blocking(sc->tx_queue.socket_fd[i], 1) != ERR_OK) {
+            DESCSOCK_LOG("Error setting non_blocking on tx socket");
+            err = ERR_MEM;
+            goto out;
+        }
+    }
+
+out:
+    return err;
+}
 static int
 descsock_ifoutput2(struct descsock_softc *sc, void *buf)
 {
@@ -590,64 +657,7 @@ err_t descsock_teardown(struct descsock_softc *sc)
 //     return NULL;
 // }
 
-/*
- * Init modular tmm,
- * send registration message containing this tmm's memory info and number of SEP requests
- */
-err_t
-descsock_init_tmmmadc(struct descsock_softc *sc)
-{
-    /* Get the information where tmm stores its memory */
-    err_t err = ERR_OK;
-    char msg[DESCSOCK_PATH_MAX];
-    int i;
 
-    sc->tmm_driver_mem = sys_get_tmm_mem();
-    if(sc->tmm_driver_mem == NULL) {
-        DESCSOCK_LOG("Could not get base address of tmm memory\n");
-        err = ERR_CONN;
-        goto out;
-    }
-
-    /* call the master socket here */
-    sc->master_socket_fd = descsock_establish_dmaa_conn();
-    if(sc->master_socket_fd < 0) {
-        DESCSOCK_LOG("\ndescsock: Failed to connect to master socket\n");
-        err = ERR_CONN;
-        goto out;
-    }
-    DESCSOCK_LOG("recived master socket %d\n", sc->master_socket_fd);
-
-    snprintf(msg, DESCSOCK_PATH_MAX, "path=%s\nbase=%llu\nlength=%d\nnum_sep=1\npid=1\nsvc_ids=1\n\n",
-            sc->tmm_driver_mem->name, (UINT64)sc->tmm_driver_mem->base, sc->tmm_driver_mem->length);
-
-    DESCSOCK_LOG("Sending msg to DMAA %s", msg);
-
-    /* Send dma region path info to DMA AGENT */
-    err = descsock_config_exchange(sc, msg);
-    if (err != ERR_OK) {
-        DESCSOCK_LOG("---- failed to write dma region to dmaa\n");
-        err = ERR_CONN;
-        goto out;
-    }
-
-    /* Set non-blocking on all TX, RX sockets */
-    for(i = 0; i < NUM_TIERS; i++) {
-        if (sys_set_non_blocking(sc->rx_queue.socket_fd[i], 1) != ERR_OK) {
-            DESCSOCK_LOG("Error setting non_blocking on rx socket");
-            err = ERR_MEM;
-            goto out;
-        }
-        if (sys_set_non_blocking(sc->tx_queue.socket_fd[i], 1) != ERR_OK) {
-            DESCSOCK_LOG("Error setting non_blocking on tx socket");
-            err = ERR_MEM;
-            goto out;
-        }
-    }
-
-out:
-    return err;
-}
 
 /*
  * Init tmm padc,

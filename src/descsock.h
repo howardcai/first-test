@@ -222,6 +222,11 @@ struct descsock_tx {
     FIXEDQ(, tx_completions_ctx_t, RING_SIZE)   completions[NUM_TIERS];
     int                                         socket_fd[NUM_TIERS];
 };
+typedef struct {
+    char    path[DESCSOCK_PATH_MAX];
+    void    *base;
+    UINT64  len;
+} dma_region_t;
 
 /* Device instance structure. */
 struct descsock_softc {
@@ -247,11 +252,12 @@ struct descsock_softc {
      * The information regarding tmm hugepage memory, path, size, base address, etc...
      * is stored here
      */
-    struct tmm_memory                           *tmm_driver_mem;
+    struct tmm_memory          *tmm_driver_mem;
+    dma_region_t               dma_region;
 
-    descsock_mode_t                             mode;
-    virtio_ports_paths_t                        virtio_ports[DESCSOCK_MAX_CPU];
-    descsock_sep_t                              sep_sockets[DESCSOCK_MAX_CPU];
+    descsock_mode_t            mode;
+    virtio_ports_paths_t       virtio_ports[DESCSOCK_MAX_CPU];
+    descsock_sep_t             sep_sockets[DESCSOCK_MAX_CPU];
   };
 
 /*

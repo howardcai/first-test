@@ -72,13 +72,16 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
         switch(c) {
             case FLAG_MEM_SIZE:
                 hudconf.memsize = strtoul(optarg, NULL, 10);
-                hudconf.dma_seg_size = hudconf.memsize;
+                /* size is in mb so we multiple to get mb */
+                hudconf.dma_seg_size = (hudconf.memsize * 1024);
+                /* align for unix page size */
+                hudconf.dma_seg_size = ((hudconf.dma_seg_size + HUGE_2M_MASK) & ~HUGE_2M_MASK);
                 // XXX: validate memsize
-                printf("memsize is %s\n", optarg);
+
                 break;
 
             case FLAG_USE_HUGEPAGES:
-                printf("hugepages path is %s\n", optarg);
+
                 hudconf.hugepages_path = strdup(optarg);
 
                 // XXX: Validate hugepages path exists
@@ -87,16 +90,16 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
             case FLAG_QUEUE_SIZE:
                 // XXX: Validate queue size is a power of two etc...
                 hudconf.queue_size = strtoul(optarg, NULL, 10);
-                printf("queuesize %d\n", hudconf.queue_size);
+
                 break;
 
             case FLAG_PHYS_MEM:
-                printf("using physmem\n");
+
                 hudconf.physmem = TRUE;
                 break;
 
             case FLAG_VIRT_MEM:
-                printf("using virt mem\n");
+
                 hudconf.virtmem = TRUE;
                 break;
 
@@ -242,8 +245,15 @@ descsock_get_errno(void) {
 void *
 descsock_map_dmaregion(char * path, UINT64 size)
 {
-    void * base_virt;
-    int fd = open(path, O_CREAT | O_RDWR, S_IRWXU);
+    void *base_virt;
+    int fd;
+    unlink(path);
+
+
+    printf("allocated 2k pages %d\n", (UINT32)(size / PAGE_SIZE));
+    printf("dma seg size %lld\n", size);
+
+    fd = open(path, O_CREAT | O_RDWR, S_IRWXU);
     if(fd == -1) {
         perror("---------- Failed to open path");
         return NULL;
