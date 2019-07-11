@@ -101,6 +101,9 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
             case FLAG_USE_TAP:
                 hudconf.use_tap = TRUE;
                 break;
+
+            default:
+                return ERR_HUD_ABORT;
         }
 
 
