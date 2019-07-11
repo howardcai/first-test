@@ -16,18 +16,25 @@ static err_t xfrag_stack_remove(struct xfrag_item *xf);
 GLOBALSET SLIST_HEAD(buf_stack, xfrag_item) xfrag_stack;
 
 void
-xfrag_pool_init(void)
+xfrag_pool_init(void *poolbase, UINT64 len)
 {
-    int i;
+    UINT64 i;
+    int count = 0;
     struct xfrag_item *xf;
     SLIST_INIT(&xfrag_stack);
 
-    for(i = 0; i < 10; i++) {
+    for(i = 0; i < len; i += BUF_SIZE) {
         xf = malloc(sizeof(struct xfrag_item));
-        xf->base = malloc(BUF_SIZE);
+        xf->base = poolbase + i;
+        //printf("buf base %p\n", xf->base);
         xf->locked = FALSE;
 
         xfrag_stack_push(xf);
+        count++;
+        if(count == 255) {
+            break;
+        }
+
     }
 }
 
@@ -35,6 +42,10 @@ void *
 xfrag_alloc(void)
 {
     struct xfrag_item *xf = xfrag_stack_pop();
+    if(xf == NULL) {
+        return NULL;
+    }
+
     xf->locked = TRUE;
 
     return xf;
@@ -55,8 +66,14 @@ void xfrag_free(struct xfrag_item *xf)
 static struct xfrag_item *
 xfrag_stack_pop(void)
 {
-    // XXX: validate not empty
-    struct xfrag_item *xf = SLIST_FIRST(&xfrag_stack);
+    struct xfrag_item *xf;
+
+    if(SLIST_EMPTY(&xfrag_stack)) {
+        printf("xfrag buf stack is empty\n");
+        return NULL;
+    }
+
+    xf = SLIST_FIRST(&xfrag_stack);
     SLIST_REMOVE_HEAD(&xfrag_stack, next);
 
     return xf;

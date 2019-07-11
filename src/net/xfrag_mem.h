@@ -11,7 +11,7 @@ struct xfrag_item {
     BOOL    locked;
 };
 
-void xfrag_pool_init(void);
+void xfrag_pool_init(void *poolbase, UINT64 len);
 
 void* xfrag_alloc(void);
 

@@ -103,22 +103,52 @@ err_t descsock_teardown(struct descsock_softc *sc);
 
 struct descsock_softc* descsock_init(int argc, char *argv[])
 {
-    char msg[DESCSOCK_PATH_MAX];
+    int i;
+    struct descsock_softc *sc;
+    err_t err = ERR_OK;
+    int tier = 0;
 
     if(argc <= 1) {
         sys_usage();
         return NULL;
     }
 
-    err_t err = sys_hudconf_init(argc, argv);
+    err = sys_hudconf_init(argc, argv);
     if(err != ERR_OK) {
         return NULL;
     }
 
-    struct descsock_softc *sc = malloc(sizeof(struct descsock_softc));
-    descsock_init_tmmmadc(sc);
+    sc = malloc(sizeof(struct descsock_softc));
 
-    xfrag_pool_init();
+    /* Init xfrag buf pool */
+    err = descsock_init_tmmmadc(sc);
+    if(err != ERR_OK) {
+        exit(EXIT_FAILURE);
+    }
+
+    /* Init queues */
+    for(i = 0; i < NUM_TIERS; i++) {
+        FIXEDQ_INIT(sc->tx_queue.completions[i]);
+        FIXEDQ_INIT(sc->rx_queue.complete_pkt[i]);
+    }
+
+
+    /* produce descriptors */
+    DESCSOCK_LOG("Producing xdatas\n");
+    i = rx_send_advance_producer(sc, tier, RING_SIZE - 1);
+    DESCSOCK_LOG("rx_send_advance producer %d\n", i);
+    if(i <= 0) {
+        DESCSOCK_LOG("Error pruducing xdatas\n");
+    }
+
+    /* Consume */
+    DESCSOCK_LOG("consuming xdatas\n");
+    i = rx_send_advance_consumer(sc, tier);
+    DESCSOCK_LOG("rx_send_advance consumer %d\n", i);
+    if(i <= 0) {
+        DESCSOCK_LOG("Error sending producer descriptors on init");
+    }
+
 
     return sc;
 }
@@ -142,7 +172,7 @@ descsock_init_tmmmadc(struct descsock_softc *sc)
     sc->dma_region.len = hudconf.dma_seg_size;
 
     /* try mmaping the passed in hugepages path */
-    sc->dma_region.base = descsock_map_dmaregion(sc->dma_region.path, hudconf.dma_seg_size);
+    sc->dma_region.base = descsock_map_dmaregion(sc->dma_region.path, sc->dma_region.len);
     if(sc->dma_region.base == NULL) {
         printf("Failed to map hugepages\n");
         exit(EXIT_FAILURE);
@@ -152,20 +182,21 @@ descsock_init_tmmmadc(struct descsock_softc *sc)
              sc->dma_region.path, (UINT64)sc->dma_region.base, sc->dma_region.len);
 
     printf("%s\n", msg);
-    exit(EXIT_SUCCESS);
-    descsock_config_exchange(sc, msg);
 
     /* call the master socket here */
     sc->master_socket_fd = descsock_establish_dmaa_conn();
     if(sc->master_socket_fd < 0) {
-        DESCSOCK_LOG("\ndescsock: Failed to connect to master socket\n");
+        DESCSOCK_LOG("Failed to connect to master socket at %s", MASTER_SOCKET);
         err = ERR_CONN;
         goto out;
     }
-    DESCSOCK_LOG("recived master socket %d\n", sc->master_socket_fd);
 
-    snprintf(msg, DESCSOCK_PATH_MAX, "path=%s\nbase=%llu\nlength=%d\nnum_sep=1\npid=1\nsvc_ids=1\n\n",
-            sc->tmm_driver_mem->name, (UINT64)sc->tmm_driver_mem->base, sc->tmm_driver_mem->length);
+    /*
+     * Initialize xfrag memory pool,
+     */
+    xfrag_pool_init(sc->dma_region.base, sc->dma_region.len);
+
+    DESCSOCK_LOG("recived master socket %d\n", sc->master_socket_fd);
 
     DESCSOCK_LOG("Sending msg to DMAA %s", msg);
 
@@ -773,7 +804,7 @@ descsock_config_exchange(struct descsock_softc * sc, char * dmapath)
             goto out;
         }
     }
-    DESCSOCK_DEBUGF("number of events: %d", num_fds);
+    DESCSOCK_LOG("number of events: %d", num_fds);
 
     /* receive sockets fds, and add them to the sc->sock_fd array */
     err = descsock_recv_socket_conns(events[0].data.fd, sc->sock_fd);
@@ -786,8 +817,8 @@ descsock_config_exchange(struct descsock_softc * sc, char * dmapath)
    // descsock_partition_sockets(sc->sock_fd, sc->rx_queue.socket_fd, sc->tx_sockets);
     descsock_partition_sockets(sc->sock_fd, sc->rx_queue.socket_fd, sc->tx_queue.socket_fd);
     for (i = 0; i < NUM_TIERS; i++) {
-        DESCSOCK_DEBUGF("RX: %d", sc->rx_queue.socket_fd[i]);
-        DESCSOCK_DEBUGF("TX: %d", sc->tx_queue.socket_fd[i]);
+        DESCSOCK_LOG("RX: %d", sc->rx_queue.socket_fd[i]);
+        DESCSOCK_LOG("TX: %d", sc->tx_queue.socket_fd[i]);
     }
 
 out:
@@ -1240,8 +1271,8 @@ rx_send_advance_producer(struct descsock_softc *sc, UINT16 tier, int max)
 err_t
 descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
 {
-    void *xfrag;
-    void *base = NULL;
+    struct xfrag_item *xfrag;
+    //void *base = NULL;
     empty_buf_desc_t *producer_desc;
     empty_desc_fifo_t *fifo = &sc->rx_queue.outbound_descriptors[tier];
 
@@ -1268,7 +1299,7 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
 
     if(sc->mode == MADC_MODE) {
         /* Use virtual addresses for tmm madc */
-        producer_desc->addr = (UINT64)base;
+        producer_desc->addr = (UINT64)xfrag->base;
     }
     else {
         /* Use guest physical addresses for tmm padc*/
@@ -1277,7 +1308,7 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
 
     producer_desc->len = BUF_SIZE;
     ex->frag = xfrag;
-    ex->xdata = base;
+    ex->xdata = xfrag->base;
     ex->phys = producer_desc->addr;
 
     return ERR_OK;

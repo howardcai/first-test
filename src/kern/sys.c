@@ -73,9 +73,10 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
             case FLAG_MEM_SIZE:
                 hudconf.memsize = strtoul(optarg, NULL, 10);
                 /* size is in mb so we multiple to get mb */
-                hudconf.dma_seg_size = (hudconf.memsize * 1024);
+                hudconf.dma_seg_size = (hudconf.memsize * 1024 * 1024);
                 /* align for unix page size */
-                hudconf.dma_seg_size = ((hudconf.dma_seg_size + HUGE_2M_MASK) & ~HUGE_2M_MASK);
+                printf("total mem %lld\n", hudconf.dma_seg_size);
+                hudconf.dma_seg_size = ((hudconf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
                 // XXX: validate memsize
 
                 break;
@@ -172,7 +173,7 @@ descsock_get_unixsocket(char *path)
 
     ret = connect(fd, (struct sockaddr *)&skt, sizeof(skt));
     if(ret < 0) {
-        perror("connect to skt\n");
+        perror("connect to skt");
         return -1;
     }
 
@@ -259,9 +260,9 @@ descsock_map_dmaregion(char * path, UINT64 size)
         return NULL;
     }
 
-    base_virt = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED , fd, 0);
+    base_virt = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if(base_virt == MAP_FAILED) {
-        perror("-------------- descsock_map_mempool failed");
+        perror("mmap failed");
         return NULL;
     }
 
