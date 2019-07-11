@@ -109,7 +109,6 @@ struct descsock_softc* descsock_init(int argc, char *argv[])
 
     err_t err = sys_hudconf_init(argc, argv);
     if(err != ERR_OK) {
-        sys_usage();
         return NULL;
     }
 

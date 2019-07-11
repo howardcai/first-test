@@ -18,7 +18,7 @@
 
 
 
-void sys_usage();
+void sys_usage(void);
 
 err_t sys_hudconf_init(int sys_argc, char **sys_argv);
 

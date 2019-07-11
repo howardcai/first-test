@@ -20,6 +20,7 @@
 
 #include "../sys/types.h"
 #include "../sys/hudconf.h"
+#include "sys.h"
 #include "err.h"
 
 GLOBALSET struct hudconf hudconf = {
@@ -102,8 +103,12 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
                 hudconf.use_tap = TRUE;
                 break;
 
-            default:
-                return ERR_HUD_ABORT;
+            case 'h':
+            case '?':
+            case ':':
+                printf("\n");
+                sys_usage();
+                return (ERR_UNKNOWN);
         }
 
 
@@ -112,7 +117,7 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
     return ERR_OK;
 }
 
-void sys_usage(void)
+void sys_usage()
 {
     const char *unix_usage =
         "usage: ./descsock_lib --memsize=1024 --virtmem etc...\n"
