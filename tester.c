@@ -26,6 +26,10 @@ int main(int argc, char *argv[]) {
 
     /* Alocate a empty buf from out internal descsock mem allocator */
     struct xfrag_item *buf = xfrag_alloc();
+    if(buf == NULL) {
+        printf("null exfrag\n");
+        exit(EXIT_FAILURE);
+    }
 
     prep_dummypkt(buf->base);
 

@@ -143,6 +143,7 @@ typedef struct  {
     void *frag;
     void *xdata;
     UINT64 phys;
+    struct xfrag_item *xf;
 } rx_extra_t;
 
 /* Store extra info about packet data here, for cleaning packets later on Rx */

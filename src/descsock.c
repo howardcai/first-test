@@ -238,7 +238,7 @@ err_t descsock_setup(struct descsock_softc *sc)
 
 int descsock_send(struct descsock_softc *sc, void *buf)
 {
-    printf("Sending buf\n");
+    printf("Sending buf %x\n", buf);
     int ret = descsock_ifoutput2(sc, buf);
 
     return ret;
@@ -1297,17 +1297,19 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
     }
     ex = (rx_extra_t *)&extra_fifo->extra[produce_buf_idx];
 
-    if(sc->mode == MADC_MODE) {
-        /* Use virtual addresses for tmm madc */
-        producer_desc->addr = (UINT64)xfrag->base;
-    }
-    else {
-        /* Use guest physical addresses for tmm padc*/
-        //producer_desc->addr = vtophys(base);
-    }
+    // if(sc->mode == MADC_MODE) {
+    //     /* Use virtual addresses for tmm madc */
+    //     producer_desc->addr = (UINT64)xfrag->base;
+    // }
+    // else {
+    //     /* Use guest physical addresses for tmm padc*/
+    //     //producer_desc->addr = vtophys(base);
+    // }
 
+    producer_desc->addr = (UINT64)xfrag->base;
     producer_desc->len = BUF_SIZE;
-    ex->frag = xfrag;
+    //ex->frag = xfrag;
+    ex->xf = xfrag;
     ex->xdata = xfrag->base;
     ex->phys = producer_desc->addr;
 

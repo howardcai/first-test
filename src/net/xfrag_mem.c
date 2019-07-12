@@ -31,7 +31,7 @@ xfrag_pool_init(void *poolbase, UINT64 len)
 
         xfrag_stack_push(xf);
         count++;
-        if(count == 255) {
+        if(count == 512) {
             break;
         }
 
