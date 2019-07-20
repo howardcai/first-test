@@ -95,7 +95,7 @@ int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
 err_t descsock_setup(struct descsock_softc *sc);
 
 int descsock_send(struct descsock_softc *sc, void *buf);
-static int descsock_ifoutput2(struct descsock_softc *sc, void *buf);
+
 
 int descsock_recv(struct descsock_softc *sc);
 
@@ -113,14 +113,19 @@ struct descsock_softc* descsock_init(int argc, char *argv[])
         return NULL;
     }
 
+    /* retrieve the passed in args */
     err = sys_hudconf_init(argc, argv);
     if(err != ERR_OK) {
         return NULL;
     }
 
     sc = malloc(sizeof(struct descsock_softc));
+    if(sc == NULL) {
+        printf("Error allocating sc\n");
+        exit(EXIT_FAILURE);
+    }
 
-    /* Init xfrag buf pool */
+    /* Init xfrag buf pool and device */
     err = descsock_init_tmmmadc(sc);
     if(err != ERR_OK) {
         exit(EXIT_FAILURE);
@@ -132,8 +137,7 @@ struct descsock_softc* descsock_init(int argc, char *argv[])
         FIXEDQ_INIT(sc->rx_queue.complete_pkt[i]);
     }
 
-
-    /* produce descriptors */
+    /* build producer descriptors */
     DESCSOCK_LOG("Producing xdatas\n");
     i = rx_send_advance_producer(sc, tier, RING_SIZE - 1);
     DESCSOCK_LOG("rx_send_advance producer %d\n", i);
@@ -141,7 +145,7 @@ struct descsock_softc* descsock_init(int argc, char *argv[])
         DESCSOCK_LOG("Error pruducing xdatas\n");
     }
 
-    /* Consume */
+    /* Send empty producer descriptors */
     DESCSOCK_LOG("consuming xdatas\n");
     i = rx_send_advance_consumer(sc, tier);
     DESCSOCK_LOG("rx_send_advance consumer %d\n", i);
@@ -152,6 +156,7 @@ struct descsock_softc* descsock_init(int argc, char *argv[])
 
     return sc;
 }
+
 /*
  * Init modular tmm,
  * send registration message containing this tmm's memory info and number of SEP requests
@@ -225,11 +230,6 @@ descsock_init_tmmmadc(struct descsock_softc *sc)
 out:
     return err;
 }
-static int
-descsock_ifoutput2(struct descsock_softc *sc, void *buf)
-{
-    return 0;
-}
 
 err_t descsock_setup(struct descsock_softc *sc)
 {
@@ -239,7 +239,7 @@ err_t descsock_setup(struct descsock_softc *sc)
 int descsock_send(struct descsock_softc *sc, void *buf)
 {
     printf("Sending buf %x\n", buf);
-    int ret = descsock_ifoutput2(sc, buf);
+    int ret = descsock_ifoutput(sc, buf);
 
     return ret;
 }
@@ -255,6 +255,87 @@ err_t descsock_teardown(struct descsock_softc *sc)
 
 
     return ERR_OK;
+}
+
+/*
+ * TX
+ */
+err_t
+descsock_ifoutput(struct descsock_softc *sc, void *pkt)
+{
+    err_t err = ERR_OK;
+    int bytes_avail;
+    int tier;
+
+    /* XXX: Get tier/qos for packet */
+
+    /*
+     * if(pkt->priority_set == TRUE) {
+     *   tier = descsock_get_tier(pkt->priority);
+     * }
+     */
+
+    /* for now set tier to 0 */
+    tier = 0;
+    //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
+
+    laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
+
+    // if (!packet_check(pkt)) {
+    //     packet_free(pkt);
+    //     DESCSOCK_LOG("Bogus packet on send.\n");
+    //     err = ERR_MEM;
+    //     goto out;
+    // }
+
+    /*
+    if (!(ifp->ifflags & IFF_UP)) {
+        DESCSOCK_LOG("Interface is down.\n");
+        err = ERR_CONN;
+        goto out;
+    }
+
+    if (ifp->if_link_state != LINK_STATE_UP) {
+        DESCSOCK_LOG("Link is down.\n");
+        err = ERR_CONN;
+        goto out;
+    }
+    */
+
+    /*
+     * If send_ring is half full, flush it
+     */
+    bytes_avail = laden_desc_fifo_avail(tx_out_fifo);
+    if(bytes_avail >= (DESCSOCK_MAX_PER_SEND * LADEN_DESC_LEN)) {
+        err = ERR_BUF;
+        goto out;
+    }
+
+    if(packet_data_singlefrag(pkt)) {
+        /*
+         * Handle single frag packet for Tx
+         */
+        err = descsock_tx_single_desc_pkt(sc, pkt, tier);
+
+        sc->stats.pkt_tx += (err == ERR_OK)? 1 : 0;
+    }
+    else {
+        /*
+         * Handle multi frag packet for Tx
+         */
+        //err = descsock_tx_multi_desc_pkt(sc, pkt, tier);
+
+        sc->stats.pkt_tx += (err == ERR_OK)? 1 : 0;
+        sc->stats.tx_jumbos += (err == ERR_OK)? 1 : 0;
+    }
+
+    if(err == ERR_OK) {
+        DESCSOCK_DEBUGF("sendring cons:%d prod:%d", tx_out_fifo->cons_idx, tx_out_fifo->prod_idx);
+        //packet_set_flag(pkt, PACKET_FLAG_LOCKED);
+    }
+
+out:
+    return err;
 }
 /*
  * device configuration
@@ -1314,88 +1395,6 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
     ex->phys = producer_desc->addr;
 
     return ERR_OK;
-}
-
-/*
- * TX
- */
-err_t
-descsock_ifoutput(struct ifnet *ifp, struct packet *pkt)
-{
-    err_t err = ERR_OK;
-    int bytes_avail;
-    int tier;
-
-    /* XXX: Get tier/qos for packet */
-
-    /*
-     * if(pkt->priority_set == TRUE) {
-     *   tier = descsock_get_tier(pkt->priority);
-     * }
-     */
-
-    /* for now set tier to 0 */
-    tier = 0;
-    //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
-    struct descsock_softc *sc = NULL;
-
-    laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
-
-    if (!packet_check(pkt)) {
-        packet_free(pkt);
-        DESCSOCK_LOG("Bogus packet on send.\n");
-        err = ERR_MEM;
-        goto out;
-    }
-
-    /*
-    if (!(ifp->ifflags & IFF_UP)) {
-        DESCSOCK_LOG("Interface is down.\n");
-        err = ERR_CONN;
-        goto out;
-    }
-
-    if (ifp->if_link_state != LINK_STATE_UP) {
-        DESCSOCK_LOG("Link is down.\n");
-        err = ERR_CONN;
-        goto out;
-    }
-    */
-
-    /*
-     * If send_ring is half full, flush it
-     */
-    bytes_avail = laden_desc_fifo_avail(tx_out_fifo);
-    if(bytes_avail >= (DESCSOCK_MAX_PER_SEND * LADEN_DESC_LEN)) {
-        err = ERR_BUF;
-        goto out;
-    }
-
-    if(packet_data_singlefrag(pkt)) {
-        /*
-         * Handle single frag packet for Tx
-         */
-        err = descsock_tx_single_desc_pkt(sc, pkt, tier);
-
-        sc->stats.pkt_tx += (err == ERR_OK)? 1 : 0;
-    }
-    else {
-        /*
-         * Handle multi frag packet for Tx
-         */
-        //err = descsock_tx_multi_desc_pkt(sc, pkt, tier);
-
-        sc->stats.pkt_tx += (err == ERR_OK)? 1 : 0;
-        sc->stats.tx_jumbos += (err == ERR_OK)? 1 : 0;
-    }
-
-    if(err == ERR_OK) {
-        DESCSOCK_DEBUGF("sendring cons:%d prod:%d", tx_out_fifo->cons_idx, tx_out_fifo->prod_idx);
-        //packet_set_flag(pkt, PACKET_FLAG_LOCKED);
-    }
-
-out:
-    return err;
 }
 
 /* send a single frag packet */

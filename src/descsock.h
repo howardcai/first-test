@@ -274,7 +274,7 @@ BOOL descsock_poll(struct dev_poll_param *param, f5device_t *devp);
  */
 // static err_t descsock_ifup(struct ifnet *ifp);
 // static err_t descsock_ifdown(struct ifnet *ifp);
-err_t descsock_ifoutput(struct ifnet *ifp, struct packet *pkt);
+err_t descsock_ifoutput(struct descsock_softc *sc, void *pkt);
 
 struct descsock_softc* descsock_init(int argc, char *argv[]);
 

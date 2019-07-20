@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <netinet/ip.h>
 #include <net/ethernet.h>
+#include <sys/epoll.h>
 
 #include "src/descsock.h"
 #include "src/kern/sys.h"
@@ -16,15 +17,32 @@
 uint16_t chksum(uint16_t *buf, int nwords);
 void prep_dummypkt(void *buf_base);
 
+struct generic_softc {
+    struct descsock_softc *sc;
+    int epfd;
+    struct epoll_event events[8];
+};
+
 int main(int argc, char *argv[]) {
-    /* Init descosck framework */
-    struct descsock_softc *sc = descsock_init(argc, argv);
-    if(sc == NULL) {
+
+    /*
+     * Init generic softc
+     */
+    struct generic_softc *generic_dev = malloc(sizeof(struct generic_softc));
+    if(generic_dev == NULL) {
+        print("Error allocating generic softc\n");
+        exit(EXIT_FAILURE);
+    }
+    /*
+     * Init descosck framework
+     */
+    generic_dev->sc = descsock_init(argc, argv);
+    if(generic_dev->sc == NULL) {
         printf("FAiled to init\n");
         exit(EXIT_FAILURE);
     }
 
-    /* Alocate a empty buf from out internal descsock mem allocator */
+    /* Alocate an empty buf from out internal descsock mem allocator */
     struct xfrag_item *buf = xfrag_alloc();
     if(buf == NULL) {
         printf("null exfrag\n");
@@ -33,12 +51,13 @@ int main(int argc, char *argv[]) {
 
     prep_dummypkt(buf->base);
 
-    descsock_send(sc, buf->base);
+    descsock_send(generic_dev->sc, buf->base);
 
 
 
     xfrag_free(buf);
-    descsock_teardown(sc);
+
+    descsock_teardown(generic_dev->sc);
 
     printf("test compile success\n");
     return EXIT_SUCCESS;
@@ -65,6 +84,7 @@ void prep_dummypkt(void *buf_base)
     //XXX: add ip source and dest
 
 }
+
 uint16_t chksum(uint16_t *buf, int nwords)
 {
         uint64_t sum;

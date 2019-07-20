@@ -1,22 +1,21 @@
 #
-# Top level build directories.
+# Copyright (C) F5 Networks, Inc. 2016-2018
 #
-SRC_DIR                     = src
-OBJ_DIR                     = obj
-TEST_DIR                    = test
+# No part of the software may be reproduced or transmitted in any
+# form or by any means, electronic or mechanical, for any purpose,
+# without express written permission of F5 Networks, Inc.
+#
 
-all: descsock_lib debug
+all: runner debug
 
+runner: tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c
+	gcc -Wall tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c -o runner
 
-
-descsock_lib: tester.c $(SRC_DIR)/descsock.c $(SRC_DIR)/kern/sys.c $(SRC_DIR)/net/packet.c $(SRC_DIR)/net/xfrag_mem.c
-	gcc -Wall tester.c $(SRC_DIR)/descsock.c $(SRC_DIR)/kern/sys.c $(SRC_DIR)/net/packet.c $(SRC_DIR)/net/xfrag_mem.c -o descsock_lib
-
-debug: tester.c $(SRC_DIR)/descsock.c $(SRC_DIR)/kern/sys.c $(SRC_DIR)/net/packet.c $(SRC_DIR)/net/xfrag_mem.c
-	gcc -Wall tester.c $(SRC_DIR)/descsock.c $(SRC_DIR)/kern/sys.c $(SRC_DIR)/net/packet.c $(SRC_DIR)/net/xfrag_mem.c -g -o debug
+debug: tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c
+	gcc -Wall -g tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c -o debug
 
 clean:
-	rm descsock_lib
+	rm runner
 	rm debug
 
 
