@@ -166,7 +166,7 @@ int descsock_client_open(descsock_client_spec_t * const spec, const int flags);
  * Returns a mask of event conditions which are satisfied and in the @event_mask,
  * or DESCSOCK_POLLERR (-1) if an error is encountered.
  */
-int descsock_poll2(int event_mask);
+int descsock_client_poll(int event_mask);
 
 
 /*

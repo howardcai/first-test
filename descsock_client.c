@@ -18,11 +18,16 @@ int
 descsock_client_open(descsock_client_spec_t * const spec, const int flags)
 {
     descsock_getpid();
+    int argc = 2;
+    char *argv = "--mesize 1024";
+
+    struct descsock_softc *sc = descsock_init(argc, argv);
+
     return 0;
 }
 
 int
-descsock_poll2(int event_mask)
+descsock_client_poll(int event_mask)
 {
     sys_usage();
     return 0;

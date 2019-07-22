@@ -7,6 +7,11 @@
 
 #include "descsock_client.h"
 
+#define SVC_ID              1
+#define MASTER_SOCKET_PATH  "/run/dmaa_doorbell.sock"
+#define HUGEPAGES_PATH      "/run/hugepages/"
+
+
 int main(int argc, char *argv[]) {
 
 
@@ -15,7 +20,7 @@ int main(int argc, char *argv[]) {
 
     descsock_client_open(client, 0);
 
-    descsock_poll2(0);
+    descsock_client_poll(0);
 
 
     printf("Compile success\n");

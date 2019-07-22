@@ -72,7 +72,7 @@ inline void clean_tx_completions(struct descsock_softc *sc, UINT16 tier);
 /*
  * Initializing, debug, helper functions
  */
-err_t descsock_init_tmmmadc(struct descsock_softc *sc);
+err_t descsock_init_conn(struct descsock_softc *sc);
 err_t descsock_init_tmmpadc(struct descsock_softc *sc);
 void descsock_print_buf(void * buf, int buf_len);
 void descsock_print_pkt(struct packet *pkt);
@@ -95,7 +95,6 @@ int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
 err_t descsock_setup(struct descsock_softc *sc);
 
 int descsock_send(struct descsock_softc *sc, void *buf);
-
 
 int descsock_recv(struct descsock_softc *sc);
 
@@ -126,7 +125,7 @@ struct descsock_softc* descsock_init(int argc, char *argv[])
     }
 
     /* Init xfrag buf pool and device */
-    err = descsock_init_tmmmadc(sc);
+    err = descsock_init_conn(sc);
     if(err != ERR_OK) {
         exit(EXIT_FAILURE);
     }
@@ -162,7 +161,7 @@ struct descsock_softc* descsock_init(int argc, char *argv[])
  * send registration message containing this tmm's memory info and number of SEP requests
  */
 err_t
-descsock_init_tmmmadc(struct descsock_softc *sc)
+descsock_init_conn(struct descsock_softc *sc)
 {
     /* Get the information where tmm stores its memory */
     err_t err = ERR_OK;
@@ -681,7 +680,7 @@ out:
 //     /* Check for madc or padc */
 //     if(strcmp(MADC_PLATFORM, hudconf.platform) == 0) {
 //         DESCSOCK_LOG("\nAttach as MADC\n");
-//         err = descsock_init_tmmmadc(sc);
+//         err = descsock_init_conn(sc);
 //         sc->mode = MADC_MODE;
 
 //         if(err != ERR_OK) {
