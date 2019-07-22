@@ -17,11 +17,12 @@
 int
 descsock_client_open(descsock_client_spec_t * const spec, const int flags)
 {
-    descsock_getpid();
     int argc = 2;
-    char *argv = "--mesize 1024";
+    char argv[2][DESCSOCK_PATHLEN];
+    snprintf(argv[0], DESCSOCK_PATHLEN, "--hugepages_path %s", spec->dma_shmem_path);
+    snprintf(argv[1], DESCSOCK_PATHLEN, "--mastersocket %s", spec->master_socket_path);
 
-    struct descsock_softc *sc = descsock_init(argc, argv);
+    descsock_init(argc, argv);
 
     return 0;
 }
@@ -33,13 +34,13 @@ descsock_client_poll(int event_mask)
     return 0;
 }
 
-int
+ssize_t
 descsock_client_send(const void * const buf, const uint64_t len, const int flags)
 {
     return 0;
 }
 
-int
+ssize_t
 descsock_client_recv(void * const buf, const uint64_t len, const int flags)
 {
     return 0;

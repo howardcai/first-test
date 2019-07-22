@@ -40,16 +40,18 @@ enum {
     FLAG_QUEUE_SIZE,
     FLAG_USE_HUGEPAGES,
     FLAG_USE_TAP,
+    FLAG_MASTER_SOCKET,
 };
 
 static const struct option long_options[] =
 {
-    {"memsize",     required_argument,  0, FLAG_MEM_SIZE},
-    {"queuesize",   required_argument,  0, FLAG_QUEUE_SIZE},
-    {"hugepages",   required_argument,  0, FLAG_USE_HUGEPAGES},
-    {"physmem",     no_argument,        0, FLAG_PHYS_MEM},
-    {"virtmem",     no_argument,        0, FLAG_VIRT_MEM},
-    {"tap",         no_argument,        0, FLAG_USE_TAP},
+    {"memsize",         required_argument,  0, FLAG_MEM_SIZE},
+    {"queuesize",       required_argument,  0, FLAG_QUEUE_SIZE},
+    {"hugepages",       required_argument,  0, FLAG_USE_HUGEPAGES},
+    {"mastersocket",    required_argument,  0, FLAG_MASTER_SOCKET},
+    {"physmem",         no_argument,        0, FLAG_PHYS_MEM},
+    {"virtmem",         no_argument,        0, FLAG_VIRT_MEM},
+    {"tap",             no_argument,        0, FLAG_USE_TAP},
     {0, 0, 0, 0}
 };
 
@@ -78,16 +80,15 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
                 printf("total mem %lld\n", hudconf.dma_seg_size);
                 hudconf.dma_seg_size = ((hudconf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
                 // XXX: validate memsize
-
                 break;
 
             case FLAG_USE_HUGEPAGES:
-
                 hudconf.hugepages_path = strdup(optarg);
-
                 // XXX: Validate hugepages path exists
                 break;
-
+            case FLAG_MASTER_SOCKET:
+                hudconf.mastersocket = strdup(optarg);
+                // XXX: Validate master socket exists
             case FLAG_QUEUE_SIZE:
                 // XXX: Validate queue size is a power of two etc...
                 hudconf.queue_size = strtoul(optarg, NULL, 10);

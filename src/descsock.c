@@ -73,7 +73,7 @@ inline void clean_tx_completions(struct descsock_softc *sc, UINT16 tier);
  * Initializing, debug, helper functions
  */
 err_t descsock_init_conn(struct descsock_softc *sc);
-err_t descsock_init_tmmpadc(struct descsock_softc *sc);
+
 void descsock_print_buf(void * buf, int buf_len);
 void descsock_print_pkt(struct packet *pkt);
 void descsock_close_fds(struct descsock_softc *sc);
@@ -100,22 +100,26 @@ int descsock_recv(struct descsock_softc *sc);
 
 err_t descsock_teardown(struct descsock_softc *sc);
 
-struct descsock_softc* descsock_init(int argc, char *argv[])
+
+struct descsock_softc *sc;
+
+
+int descsock_init(int argc, char *argv[])
 {
     int i;
-    struct descsock_softc *sc;
+    int ret = 1;
     err_t err = ERR_OK;
     int tier = 0;
 
     if(argc <= 1) {
         sys_usage();
-        return NULL;
+        return -1;
     }
 
     /* retrieve the passed in args */
     err = sys_hudconf_init(argc, argv);
     if(err != ERR_OK) {
-        return NULL;
+        return -1;
     }
 
     sc = malloc(sizeof(struct descsock_softc));
@@ -127,6 +131,7 @@ struct descsock_softc* descsock_init(int argc, char *argv[])
     /* Init xfrag buf pool and device */
     err = descsock_init_conn(sc);
     if(err != ERR_OK) {
+        printf("Error initializing connection\n");
         exit(EXIT_FAILURE);
     }
 
@@ -152,12 +157,11 @@ struct descsock_softc* descsock_init(int argc, char *argv[])
         DESCSOCK_LOG("Error sending producer descriptors on init");
     }
 
-
-    return sc;
+    return ret;
 }
 
 /*
- * Init modular tmm,
+ * Init descsock framework
  * send registration message containing this tmm's memory info and number of SEP requests
  */
 err_t
@@ -768,74 +772,6 @@ out:
 //     return NULL;
 // }
 
-
-
-/*
- * Init tmm padc,
- * open virtio ports to crate Rx and Tx file descriptors.
- */
-// err_t
-// descsock_init_tmmpadc(struct descsock_softc *sc)
-// {
-//     //DESCSOCK_LOG("\nhudconf.npus %d", hudconf.npus);
-//     int i, j;
-//     int fd = -1;
-
-//     for(i = 0; i < hudconf.npus; i++) {
-//          for(j = 0; j < NUM_TIERS; j++) {
-
-//             /*
-//              * Rx, save the virtio port path, then open the device at that path
-//              */
-//             snprintf(sc->virtio_ports[i].rx_paths[j], (DESCSOCK_PATH_MAX -1),"/dev/virtio-ports/dma-sep-%d-rx-%d", i, j);
-//             fd = open_file_read_write(sc->virtio_ports[i].rx_paths[j]);
-
-//             if(fd < 0) {
-//                 DESCSOCK_LOG("Failed to open virtio device %s", sc->virtio_ports[i].rx_paths[j]);
-//                 return ERR_CONN;
-//             }
-
-//             sc->sep_sockets[i].rx_fd[j] = fd;
-//             DESCSOCK_LOG("Opened virtio device %d at %s", sc->sep_sockets[i].rx_fd[j] = fd, sc->virtio_ports[i].rx_paths[j]);
-
-//             /*
-//              * Tx, save the virtio port path, then open the device at that path
-//              */
-//             snprintf(sc->virtio_ports[i].tx_paths[j], (DESCSOCK_PATH_MAX -1),"/dev/virtio-ports/dma-sep-%d-tx-%d", i, j);
-//             fd = open_file_read_write(sc->virtio_ports[i].tx_paths[j]);
-//             if(fd < 0) {
-//                 DESCSOCK_LOG("Failed to open virtio device %s", sc->virtio_ports[i].tx_paths[j]);
-//                 return ERR_CONN;
-//             }
-
-//             sc->sep_sockets[i].tx_fd[j] = fd;
-//             DESCSOCK_LOG("Opened virtio device %d at %s", sc->sep_sockets[i].tx_fd[j] , sc->virtio_ports[i].tx_paths[j]);
-//         }
-//     }
-
-//     /* Save sockets fds */
-//     for(i = 0; i < NUM_TIERS; i++) {
-//         sc->rx_queue.socket_fd[i] = sc->sep_sockets[0].rx_fd[i];
-//         sc->tx_queue.socket_fd[i] = sc->sep_sockets[0].tx_fd[i];
-//         DESCSOCK_LOG("sc->rx_queue.socket_fd[i] %d, sc->tx_queue.socket_fd[i] %d", sc->rx_queue.socket_fd[i], sc->tx_queue.socket_fd[i]);
-//         //DESCSOCK_LOG("sc->rx_sockets[i] %d, sc->tx_sockets[i] %d", sc->sep_sockets[0].rx_fd[i], sc->sep_sockets[0].tx_fd[i]);
-//     }
-
-//     /* Set non-blocking on all TX, RX sockets */
-//     for(i = 0; i < NUM_TIERS; i++) {
-//         if (sys_set_non_blocking(sc->rx_queue.socket_fd[i], 1) != ERR_OK) {
-//             DESCSOCK_LOG("Error setting non_blocking on rx socket");
-//             exit(-1);
-//         }
-//         if (sys_set_non_blocking(sc->tx_queue.socket_fd[i], 1) != ERR_OK) {
-//             DESCSOCK_LOG("Error setting non_blocking on tx socket");
-//             exit(-1);
-//         }
-//     }
-//     DESCSOCK_LOG("Opened virtio ports successfully\n");
-
-//     return ERR_OK;
-// }
 
 /* Send our config to the DMA Agent */
 err_t
