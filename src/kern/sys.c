@@ -45,10 +45,10 @@ enum {
 
 static const struct option long_options[] =
 {
-    {"memsize",         required_argument,  0, FLAG_MEM_SIZE},
-    {"queuesize",       required_argument,  0, FLAG_QUEUE_SIZE},
+    {"memsize",         no_argument,  0, FLAG_MEM_SIZE},
+    {"queuesize",       no_argument,  0, FLAG_QUEUE_SIZE},
     {"hugepages",       required_argument,  0, FLAG_USE_HUGEPAGES},
-    {"mastersocket",    required_argument,  0, FLAG_MASTER_SOCKET},
+    {"mastersock",      required_argument,  0, FLAG_MASTER_SOCKET},
     {"physmem",         no_argument,        0, FLAG_PHYS_MEM},
     {"virtmem",         no_argument,        0, FLAG_VIRT_MEM},
     {"tap",             no_argument,        0, FLAG_USE_TAP},
@@ -70,7 +70,7 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
 
     do {
         c = getopt_long(sys_argc, sys_argv, "", long_options, &long_idx);
-
+        //printf("optarg %s\n", optarg);
         switch(c) {
             case FLAG_MEM_SIZE:
                 hudconf.memsize = strtoul(optarg, NULL, 10);
@@ -88,6 +88,7 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
                 break;
             case FLAG_MASTER_SOCKET:
                 hudconf.mastersocket = strdup(optarg);
+                break;
                 // XXX: Validate master socket exists
             case FLAG_QUEUE_SIZE:
                 // XXX: Validate queue size is a power of two etc...
@@ -254,10 +255,11 @@ descsock_map_dmaregion(char * path, UINT64 size)
 
     printf("allocated 2k pages %d\n", (UINT32)(size / PAGE_SIZE));
     printf("dma seg size %lld\n", size);
+    printf("path %s\n", path);
 
     fd = open(path, O_CREAT | O_RDWR, S_IRWXU);
     if(fd == -1) {
-        perror("---------- Failed to open path");
+        perror("Failed to open path ");
         return NULL;
     }
 

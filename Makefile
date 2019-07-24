@@ -9,10 +9,10 @@
 all: runner debug
 
 runner: tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c
-	gcc -Wall tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c -o runner
+	gcc -Wall tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c -lpthread -o runner
 
 debug: tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c
-	gcc -Wall -g tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c -o debug
+	gcc -Wall -g tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c -lpthread -o debug
 
 clean:
 	rm runner

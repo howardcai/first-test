@@ -15,6 +15,7 @@
 #include <sys/queue.h>
 #include <string.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "sys/types.h"
 #include "sys/hudconf.h"
@@ -104,23 +105,33 @@ err_t descsock_teardown(struct descsock_softc *sc);
 struct descsock_softc *sc;
 
 
-int descsock_init(int argc, char *argv[])
+int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
 {
     int i;
     int ret = 1;
     err_t err = ERR_OK;
     int tier = 0;
 
-    if(argc <= 1) {
-        sys_usage();
-        return -1;
-    }
+    // if(argc <= 1) {
+    //     sys_usage();
+    //     return -1;
+    // }
 
-    /* retrieve the passed in args */
-    err = sys_hudconf_init(argc, argv);
-    if(err != ERR_OK) {
-        return -1;
-    }
+    // /* retrieve the passed in args */
+    // err = sys_hudconf_init(argc, argv);
+    // if(err != ERR_OK) {
+    //     return -1;
+    // }
+    hudconf.hugepages_path = strdup(dma_shmem_path);
+    hudconf.mastersocket = strdup(mastersocket);
+    hudconf.svc_ids = svc_id;
+    hudconf.memsize = 32;
+    hudconf.num_seps = 1;
+    /* size is in mb so we multiple to get mb */
+    hudconf.dma_seg_size = (hudconf.memsize * 1024 * 1024);
+    /* align for unix page size */
+    printf("total mem %lld\n", hudconf.dma_seg_size);
+    hudconf.dma_seg_size = ((hudconf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
 
     sc = malloc(sizeof(struct descsock_softc));
     if(sc == NULL) {
@@ -241,7 +252,7 @@ err_t descsock_setup(struct descsock_softc *sc)
 
 int descsock_send(struct descsock_softc *sc, void *buf)
 {
-    printf("Sending buf %x\n", buf);
+    printf("Sending buf %p\n", buf);
     int ret = descsock_ifoutput(sc, buf);
 
     return ret;
@@ -788,7 +799,7 @@ descsock_config_exchange(struct descsock_softc * sc, char * dmapath)
     n = descsock_socket_write(sc->master_socket_fd, dmapath, 256);
     DESCSOCK_DEBUGF("bytes written %d\n", n);
     if(n < 0 ) {
-        DESCSOCK_DEBUGF("Error writing to master socket config_exchange()%s");
+        //DESCSOCK_DEBUGF("Error writing to master socket config_exchange()%s");
         err = ERR_BUF;
         goto out;
     }

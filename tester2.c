@@ -13,7 +13,7 @@
 
 #define SVC_ID              1
 #define MASTER_SOCKET_PATH  "/run/dmaa_doorbell.sock"
-#define HUGEPAGES_PATH      "/run/hugepages/"
+#define HUGEPAGES_PATH      "/var/hugepages"
 
 uint16_t chksum(uint16_t *buf, int nwords);
 void prep_dummypkt(void *buf_base);
@@ -27,12 +27,12 @@ int main(int argc, char *argv[]) {
     descsock_client_spec_t *client = malloc(sizeof(descsock_client_spec_t));
 
     snprintf(client->master_socket_path, DESCSOCK_PATHLEN, "%s", MASTER_SOCKET_PATH);
-    snprintf(client->dma_shmem_path, DESCSOCK_PATHLEN, "%s", MASTER_SOCKET_PATH);
+    snprintf(client->dma_shmem_path, DESCSOCK_PATHLEN, "%s", HUGEPAGES_PATH);
     client->svc_id = SVC_ID;
 
 
     res = descsock_client_open(client, 0);
-    if(res == 1) {
+    if(res == -1) {
         printf("Error client_open\n");
         exit(EXIT_FAILURE);
     }
