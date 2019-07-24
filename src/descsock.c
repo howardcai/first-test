@@ -94,16 +94,13 @@ BOOL empty_desc_fifo_empty(empty_desc_fifo_t *fifo);
 int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
 
 err_t descsock_setup(struct descsock_softc *sc);
-
-int descsock_send(struct descsock_softc *sc, void *buf);
-
-int descsock_recv(struct descsock_softc *sc);
-
-err_t descsock_teardown(struct descsock_softc *sc);
+err_t descsock_teardown();
 
 
 struct descsock_softc *sc;
 
+static tx_xfrag_t *active_tx_bufs[256];
+static UINT32 buf_idx = 0;
 
 int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
 {
@@ -213,7 +210,9 @@ descsock_init_conn(struct descsock_softc *sc)
     /*
      * Initialize xfrag memory pool,
      */
-    xfrag_pool_init(sc->dma_region.base, sc->dma_region.len);
+    //xfrag_pool_init(sc->dma_region.base, sc->dma_region.len);
+    rx_xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, 256);
+    tx_xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, 256);
 
     DESCSOCK_LOG("recived master socket %d\n", sc->master_socket_fd);
 
@@ -245,14 +244,52 @@ out:
     return err;
 }
 
+client_tx_buf_t * descsock_alloc_tx_xfrag()
+{
+    tx_xfrag_t *xf = tx_xfrag_alloc(0);
+    xf->idx = buf_idx;
+    /*
+     * add xf to active tx frags array passed onto the client for use
+     * The array index has to match the tx_xfrag->idx == client_buf->idx so that I can
+     * free the client buf later when the user calls descsock_free_tx_xfrag()
+     */
+    active_tx_bufs[xf->idx] = xf;
+
+    client_tx_buf_t *client_buf = malloc(sizeof(client_tx_buf_t));
+    client_buf->idx = buf_idx;
+    client_buf->base = xf->base;
+
+    buf_idx++;
+
+    return client_buf;
+
+}
+
+void descsock_free_tx_xfrag(void *handle)
+{
+    client_tx_buf_t *buf = (client_tx_buf_t *)handle;
+    // XXX: asserts here
+
+    tx_xfrag_t *xf = active_tx_bufs[buf->idx];
+    if(xf == NULL) {
+        printf("tx_xfrag_t at index: %d is null\n", buf->idx);
+        return;
+    }
+
+    active_tx_bufs[buf_idx] = NULL;
+
+    tx_xfrag_free(xf);
+}
+
 err_t descsock_setup(struct descsock_softc *sc)
 {
     return ERR_OK;
 }
 
-int descsock_send(struct descsock_softc *sc, void *buf)
+int descsock_send(void *handle, UINT64 len)
 {
-    printf("Sending buf %p\n", buf);
+    client_tx_buf_t *buf = (client_tx_buf_t *)handle;
+
     int ret = descsock_ifoutput(sc, buf);
 
     return ret;
@@ -263,8 +300,11 @@ int descsock_recv(struct descsock_softc *sc)
     return 0;
 }
 
-err_t descsock_teardown(struct descsock_softc *sc)
+err_t descsock_teardown()
 {
+    free(hudconf.hugepages_path);
+    free(hudconf.mastersocket);
+
     free(sc);
 
 
@@ -1298,7 +1338,7 @@ rx_send_advance_producer(struct descsock_softc *sc, UINT16 tier, int max)
 err_t
 descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
 {
-    struct xfrag_item *xfrag;
+    rx_xfrag_t *xfrag;
     //void *base = NULL;
     empty_buf_desc_t *producer_desc;
     empty_desc_fifo_t *fifo = &sc->rx_queue.outbound_descriptors[tier];
@@ -1310,7 +1350,7 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
     rx_extra_t *ex;
 
     //xfrag = packet_data_newfrag(&base);
-    xfrag = xfrag_alloc();
+    xfrag = rx_xfrag_alloc(99);
     if(xfrag == NULL) {
         DESCSOCK_LOG("xfrag returned null\n");
         return ERR_BUF;

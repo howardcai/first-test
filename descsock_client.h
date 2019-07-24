@@ -99,7 +99,10 @@ typedef struct {
  */
 extern volatile const descsock_client_stats_t *descsock_stats;
 
-
+typedef struct {
+    void *base;
+    const uint32_t idx;
+} descsock_client_tx_buf_t;
 
 typedef struct {
     /*
@@ -185,7 +188,7 @@ int descsock_client_poll(int event_mask);
  * If errno is EWOULDBLOCK, and the DESCSOCK_NONBLOCK flag is set, then there is
  * back-pressure on the transmit descriptor socket (no room to send).
  */
-ssize_t descsock_client_send(const void * const buf, const uint64_t len, const int flags);
+ssize_t descsock_client_send(descsock_client_tx_buf_t* buf, const uint64_t len, const int flags);
 
 
 /*
@@ -216,6 +219,9 @@ ssize_t descsock_client_recv(void * const buf, const uint64_t len, const int fla
  * Returns 0 on success, -1 on failure and errno will be set appropriately.
  */
 int descsock_client_ctrl(const int cmd, ...);
+
+descsock_client_tx_buf_t* descsock_client_alloc_buf();
+void descsock_client_free_buf(descsock_client_tx_buf_t *buf);
 
 
 /*

@@ -16,7 +16,7 @@
 
 #include "descsock_client.h"
 
-#define FAILED 1
+#define FAILED -1
 
 static struct client_config {
     char *dma_shmem_path;
@@ -26,9 +26,9 @@ static struct client_config {
     .svc_id = 0,
 };
 
-void* init_descsock_lib(void);
+static int init_descosck_lib(void);
 
-void *
+static int
 init_descosck_lib() {
     int ret;
     //char argv[2][DESCSOCK_PATHLEN];
@@ -44,7 +44,7 @@ init_descosck_lib() {
     }
 
 
-    return NULL;
+    return ret;
 }
 
 int
@@ -52,41 +52,53 @@ descsock_client_open(descsock_client_spec_t * const spec, const int flags)
 {
 
 
-    pthread_t thread_id;
-    int ret;
+    //pthread_t thread_id;
+    int ret = 1;
 
     config.dma_shmem_path = strdup(spec->dma_shmem_path);
     config.master_socket_path = strdup(spec->master_socket_path);
     config.svc_id = spec->svc_id;
 
 
-    ret = pthread_create(&thread_id, NULL, &init_descosck_lib, NULL);
-    if(ret != 0) {
+    printf("Initializing descsock library\n");
+    //ret = pthread_create(&thread_id, NULL, &init_descosck_lib, NULL);
+    ret = init_descosck_lib();
+    if(ret == FAILED) {
         perror("starting thread ");
         exit(EXIT_FAILURE);
     }
 
-    printf("Initializing descsock library\n");
-
+    //pthread_join(thread_id, NULL);
     sleep(3);
 
 
+    return ret;
+}
 
+descsock_client_tx_buf_t* descsock_client_alloc_buf()
+{
+    return (descsock_client_tx_buf_t*) descsock_alloc_tx_xfrag();
+}
 
-    return 1;
+void descsock_client_free_buf(descsock_client_tx_buf_t *buf)
+{
+    descsock_free_tx_xfrag((void* )buf);
 }
 
 int
 descsock_client_poll(int event_mask)
 {
-    sys_usage();
+    // call descsock_poll to read rx sockets for any descriptor
     return 0;
 }
 
 ssize_t
-descsock_client_send(const void * const buf, const uint64_t len, const int flags)
+descsock_client_send(descsock_client_tx_buf_t *buf, const uint64_t len, const int flags)
 {
-    return 0;
+    // call descsock_ifoutput sending buf to dma agent
+    int sent = descsock_send((void *)buf, len);
+
+    return sent;
 }
 
 ssize_t
@@ -104,5 +116,10 @@ descsock_client_cntl(const int cmd, ...)
 int
 descsock_client_close(void)
 {
+    free(config.dma_shmem_path);
+    free(config.master_socket_path);
+
+    descsock_teardown();
+
     return 0;
 }

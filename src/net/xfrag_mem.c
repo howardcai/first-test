@@ -9,99 +9,125 @@
 #include "xfrag_mem.h"
 
 
-static struct xfrag_item* xfrag_stack_pop(void);
-static void xfrag_stack_push(struct xfrag_item *xf);
-static err_t xfrag_stack_remove(struct xfrag_item *xf);
+TAILQ_HEAD(rx_xfrag_pool_list, rx_xfrag_t) rx_xfrag_pool_head;
+TAILQ_HEAD(tx_xfrag_pool_list, tx_xfrag_t) tx_xfrag_pool_head;
 
-GLOBALSET SLIST_HEAD(buf_stack, xfrag_item) xfrag_stack;
+static UINT64 offset = 0;
 
-void
-xfrag_pool_init(void *poolbase, UINT64 len)
+static xfrag_ussage_stats_t xfrag_stats = {
+    .xfrag_rx_used = 0,
+    .xfrag_rx_avail = 0,
+    .xfrag_tx_used = 0,
+    .xfrag_rx_avail = 0,
+};
+
+
+/*
+ * Rx xfrag for producer and return
+ */
+void rx_xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
 {
-    UINT64 i;
-    int count = 0;
-    struct xfrag_item *xf;
-    SLIST_INIT(&xfrag_stack);
+    // XXX: VAlidate that we don't run over the pool_len
+    TAILQ_INIT(&rx_xfrag_pool_head);
+    int i;
+    rx_xfrag_t *xf;
 
-    for(i = 0; i < len; i += BUF_SIZE) {
-        xf = malloc(sizeof(struct xfrag_item));
-        xf->base = poolbase + i;
-        //printf("buf base %p\n", xf->base);
-        xf->locked = FALSE;
-
-        xfrag_stack_push(xf);
-        count++;
-        if(count == 512) {
-            break;
+    for(i = 0; i < num_of_bufs; i++) {
+        xf = malloc(sizeof(rx_xfrag_t));
+        if(xf == NULL){
+            printf("Failed to malloc rx_xfrag_t\n");
+            return;
         }
 
-    }
-}
-
-void *
-xfrag_alloc(void)
-{
-    struct xfrag_item *xf = xfrag_stack_pop();
-    if(xf == NULL) {
-        return NULL;
-    }
-
-    xf->locked = TRUE;
-
-    return xf;
-}
-
-void xfrag_free(struct xfrag_item *xf)
-{
-    if(xf->locked) {
+        xf->base = pool_base + offset;
         xf->locked = FALSE;
-        //free(xf->base);
-        //xf->base = NULL;
-        memset(xf->base, 0, BUF_SIZE);
 
-        xfrag_stack_push(xf);
+        TAILQ_INSERT_TAIL(&rx_xfrag_pool_head, xf, xfrag_entry);
+        offset += BUF_SIZE;
     }
+
+    xfrag_stats.xfrag_rx_avail = num_of_bufs;
 }
 
-static struct xfrag_item *
-xfrag_stack_pop(void)
+rx_xfrag_t* rx_xfrag_alloc(int mss)
 {
-    struct xfrag_item *xf;
+    rx_xfrag_t *xf = TAILQ_FIRST(&rx_xfrag_pool_head);
 
-    if(SLIST_EMPTY(&xfrag_stack)) {
-        printf("xfrag buf stack is empty\n");
+    if(xf == NULL) {
+        printf("no more rx_xfrags in pool\n");
         return NULL;
     }
 
-    xf = SLIST_FIRST(&xfrag_stack);
-    SLIST_REMOVE_HEAD(&xfrag_stack, next);
+    TAILQ_REMOVE(&rx_xfrag_pool_head, xf, xfrag_entry);
+
+    xf->len = 0;
+    xf->locked = TRUE;
+    memset(xf->base, 0, BUF_SIZE);
+
+    xfrag_stats.xfrag_rx_used++;
+    xfrag_stats.xfrag_rx_avail--;
 
     return xf;
 }
 
-static void
-xfrag_stack_push(struct xfrag_item *xf)
+void rx_xfrag_free(rx_xfrag_t *xf)
 {
-    SLIST_INSERT_HEAD(&xfrag_stack, xf, next);
+    TAILQ_INSERT_TAIL(&rx_xfrag_pool_head, xf, xfrag_entry);
+    xfrag_stats.xfrag_rx_used--;
+    xfrag_stats.xfrag_rx_avail++;
 }
 
-static err_t
-xfrag_stack_remove(struct xfrag_item *xf)
+/*
+ * Rx xfrag for sending and completions
+*/
+void tx_xfrag_pool_init(void *poolbase, UINT64 pool_len, int num_of_bufs)
 {
-    // XXX: validate xf or xf->base is not null for double free error
+    // XXX: VAlidate that we don't run over the pool_len
+    TAILQ_INIT(&tx_xfrag_pool_head);
+    tx_xfrag_t *xf;
+    int i;
 
-    free(xf->base);
-    xf->base = NULL;
+    for(i = 0; i < num_of_bufs; i++) {
+        xf = malloc(sizeof(tx_xfrag_t));
+        if(xf == NULL) {
+            printf("Failed to malloc tx_xfrag_t\n");
+            return;
+        }
 
-    free(xf);
+        xf->base = poolbase + offset;
+        xf->locked = FALSE;
 
-    return ERR_OK;
+        TAILQ_INSERT_TAIL(&tx_xfrag_pool_head, xf, xfrag_entry);
+        offset += BUF_SIZE;
+    }
+
+    xfrag_stats.xfrag_tx_avail = num_of_bufs;
 }
-// int main() {
 
+tx_xfrag_t* tx_xfrag_alloc(int mss)
+{
+    tx_xfrag_t *xf = TAILQ_FIRST(&tx_xfrag_pool_head);
 
-//     xfrag_pool_init();
+    if(xf == NULL) {
+        printf("no more tx_xfrags in pool\n");
+        return NULL;
+    }
 
-//     printf("Success\n");
-//     return EXIT_SUCCESS;
-// }
+    TAILQ_REMOVE(&tx_xfrag_pool_head, xf, xfrag_entry);
+
+    xf->len = 0;
+    xf->idx = 0;
+    xf->locked = TRUE;
+    memset(xf->base, 0, BUF_SIZE);
+
+    xfrag_stats.xfrag_tx_used++;
+    xfrag_stats.xfrag_tx_avail--;
+
+    return xf;
+}
+void tx_xfrag_free(tx_xfrag_t *xf)
+{
+    TAILQ_INSERT_TAIL(&tx_xfrag_pool_head, xf, xfrag_entry);
+    xfrag_stats.xfrag_tx_used--;
+    xfrag_stats.xfrag_tx_avail++;
+}

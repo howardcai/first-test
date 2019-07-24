@@ -21,7 +21,7 @@ void prep_dummypkt(void *buf_base);
 
 int main(int argc, char *argv[]) {
 
-    void *buf;
+    descsock_client_tx_buf_t *buf;
     int res;
 
     descsock_client_spec_t *client = malloc(sizeof(descsock_client_spec_t));
@@ -39,22 +39,32 @@ int main(int argc, char *argv[]) {
 
 
 
-    buf = malloc(DESCSOCK_BUF_SIZE);
-    prep_dummypkt(buf);
+    buf = descsock_client_alloc_buf();
+
+    prep_dummypkt(buf->base);
 
 
     while(1) {
 
+        printf("Sending buf %p\n", buf->base);
         descsock_client_send(buf, 2048, 0);
         sleep(2);
 
+        printf("Receving buf\n");
         descsock_client_poll(0);
         sleep(2);
+
+        break;
     }
 
 
-    printf("Compile success\n");
+    descsock_client_free_buf(buf);
+
     free(client);
+
+    descsock_client_close();
+
+    printf("Compile success\n");
 
     return EXIT_SUCCESS;
 }

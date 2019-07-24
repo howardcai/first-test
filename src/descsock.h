@@ -17,6 +17,7 @@
 #include "sys/types.h"
 #include "sys/fixed_queue.h"
 #include "kern/err.h"
+#include "net/xfrag_mem.h"
 
 #define DESCSOCK_POLL_USEC          (50)
 #define DESCSOCK_NOMINAL_BITRATE    (120000000000ULL)
@@ -143,7 +144,7 @@ typedef struct  {
     void *frag;
     void *xdata;
     UINT64 phys;
-    struct xfrag_item *xf;
+    rx_xfrag_t *xf;
 } rx_extra_t;
 
 /* Store extra info about packet data here, for cleaning packets later on Rx */
@@ -261,6 +262,11 @@ struct descsock_softc {
     descsock_sep_t             sep_sockets[DESCSOCK_MAX_CPU];
   };
 
+typedef struct {
+    void *base;
+    UINT32 idx;
+} client_tx_buf_t;
+
 /*
  * device interface functions
  */
@@ -277,15 +283,19 @@ BOOL descsock_poll(struct dev_poll_param *param, f5device_t *devp);
 err_t descsock_ifoutput(struct descsock_softc *sc, void *pkt);
 
 int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id);
-
-
 err_t descsock_setup(struct descsock_softc *sc);
+err_t descsock_teardown();
 
-int descsock_send(struct descsock_softc *sc, void *buf);
 
+/*
+ * library client API
+ */
+int descsock_send(void *handle, UINT64 len);
 int descsock_recv(struct descsock_softc *sc);
 
-err_t descsock_teardown(struct descsock_softc *sc);
+client_tx_buf_t* descsock_alloc_tx_xfrag();
+void descsock_free_tx_xfrag(void *handle);
+
 
 
 /* Forward declaration.  Actual struct only used in if_descsock.c */
