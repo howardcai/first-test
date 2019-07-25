@@ -64,7 +64,7 @@ inline int tx_receive_adanvace_consumer(struct descsock_softc *sc, UINT32 tier, 
 inline int flush_bytes_to_socket(struct descsock_softc *sep, UINT32 tx, int qos);
 inline err_t tx_send_advance_producer(struct descsock_softc *sc, UINT32 tier);
 inline int tx_send_advance_consumer(struct descsock_softc *sc, UINT32 tier);
-err_t descsock_tx_single_desc_pkt(struct descsock_softc *sc, struct packet *pkt, UINT32 tier);
+err_t descsock_tx_single_desc_pkt(struct descsock_softc *sc, client_tx_buf_t *buf, UINT32 tier);
 err_t descsock_tx_multi_desc_pkt(struct descsock_softc *sc, struct packet *pkt, UINT32 tier);
 inline int rx_send_advance_producer(struct descsock_softc *sc, UINT16 tier, int max);
 inline int rx_send_advance_consumer(struct descsock_softc *sc, int tier);
@@ -98,9 +98,10 @@ err_t descsock_teardown();
 
 
 struct descsock_softc *sc;
+SLIST_HEAD(tx_list, tx_entry) tx_list_head;
 
 static tx_xfrag_t *active_tx_bufs[256];
-static UINT32 buf_idx = 0;
+static UINT64 buf_idx = 0;
 
 int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
 {
@@ -148,6 +149,7 @@ int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id
         FIXEDQ_INIT(sc->tx_queue.completions[i]);
         FIXEDQ_INIT(sc->rx_queue.complete_pkt[i]);
     }
+    SLIST_INIT(&tx_list_head);
 
     /* build producer descriptors */
     DESCSOCK_LOG("Producing xdatas\n");
@@ -248,17 +250,19 @@ client_tx_buf_t * descsock_alloc_tx_xfrag()
 {
     tx_xfrag_t *xf = tx_xfrag_alloc(0);
     xf->idx = buf_idx;
-    /*
-     * add xf to active tx frags array passed onto the client for use
-     * The array index has to match the tx_xfrag->idx == client_buf->idx so that I can
-     * free the client buf later when the user calls descsock_free_tx_xfrag()
-     */
-    active_tx_bufs[xf->idx] = xf;
+
+    tx_entry_t *tx_entry = (tx_entry_t *)&sc->tx_queue.tx_entry_fifo.e[sc->tx_queue.tx_entry_fifo.prod_idx];
+    tx_entry->xf = xf;
+    tx_entry->idx = buf_idx;
+
+    /*Save reference to  xf in list */
+    SLIST_INSERT_HEAD(&tx_list_head, tx_entry, next);
 
     client_tx_buf_t *client_buf = malloc(sizeof(client_tx_buf_t));
     client_buf->idx = buf_idx;
     client_buf->base = xf->base;
 
+    // XXX: keep track of this buf index can cause problems later if overflown
     buf_idx++;
 
     return client_buf;
@@ -289,6 +293,11 @@ err_t descsock_setup(struct descsock_softc *sc)
 int descsock_send(void *handle, UINT64 len)
 {
     client_tx_buf_t *buf = (client_tx_buf_t *)handle;
+    tx_xfrag_t *xf = active_tx_bufs[buf->idx];
+
+    if(xf == NULL) {
+        printf("null tx_xfrag_t at index: %d\n", buf->idx);
+    }
 
     int ret = descsock_ifoutput(sc, buf);
 
@@ -315,46 +324,17 @@ err_t descsock_teardown()
  * TX
  */
 err_t
-descsock_ifoutput(struct descsock_softc *sc, void *pkt)
+descsock_ifoutput(struct descsock_softc *sc, client_tx_buf_t *buf)
 {
     err_t err = ERR_OK;
     int bytes_avail;
     int tier;
-
-    /* XXX: Get tier/qos for packet */
-
-    /*
-     * if(pkt->priority_set == TRUE) {
-     *   tier = descsock_get_tier(pkt->priority);
-     * }
-     */
 
     /* for now set tier to 0 */
     tier = 0;
     //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
 
     laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
-
-    // if (!packet_check(pkt)) {
-    //     packet_free(pkt);
-    //     DESCSOCK_LOG("Bogus packet on send.\n");
-    //     err = ERR_MEM;
-    //     goto out;
-    // }
-
-    /*
-    if (!(ifp->ifflags & IFF_UP)) {
-        DESCSOCK_LOG("Interface is down.\n");
-        err = ERR_CONN;
-        goto out;
-    }
-
-    if (ifp->if_link_state != LINK_STATE_UP) {
-        DESCSOCK_LOG("Link is down.\n");
-        err = ERR_CONN;
-        goto out;
-    }
-    */
 
     /*
      * If send_ring is half full, flush it
@@ -365,23 +345,11 @@ descsock_ifoutput(struct descsock_softc *sc, void *pkt)
         goto out;
     }
 
-    if(packet_data_singlefrag(pkt)) {
-        /*
-         * Handle single frag packet for Tx
-         */
-        err = descsock_tx_single_desc_pkt(sc, pkt, tier);
+    err = descsock_tx_single_desc_pkt(sc, buf, tier);
 
-        sc->stats.pkt_tx += (err == ERR_OK)? 1 : 0;
-    }
-    else {
-        /*
-         * Handle multi frag packet for Tx
-         */
-        //err = descsock_tx_multi_desc_pkt(sc, pkt, tier);
+    sc->stats.pkt_tx += (err == ERR_OK)? 1 : 0;
 
-        sc->stats.pkt_tx += (err == ERR_OK)? 1 : 0;
-        sc->stats.tx_jumbos += (err == ERR_OK)? 1 : 0;
-    }
+
 
     if(err == ERR_OK) {
         DESCSOCK_DEBUGF("sendring cons:%d prod:%d", tx_out_fifo->cons_idx, tx_out_fifo->prod_idx);
@@ -390,6 +358,68 @@ descsock_ifoutput(struct descsock_softc *sc, void *pkt)
 
 out:
     return err;
+}
+
+/* send a single frag packet */
+err_t
+descsock_tx_single_desc_pkt(struct descsock_softc * sc, client_tx_buf_t *buf, UINT32 tier)
+{
+
+    void *xdata = NULL;
+    UINT16 xdata_len = 0;
+    UINT16 vlan_tag = 0;
+    err_t err = ERR_OK;
+    tx_completions_ctx_t *clean_ctx;
+    laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
+    laden_buf_desc_t *send_desc = (laden_buf_desc_t *)&tx_out_fifo->c[tx_out_fifo->prod_idx];
+
+    /* Get buf data from packet */
+    //xdata = xfrag_getptrlen(packet_data_firstfrag(pkt), &xdata_len);
+
+    /* tmm-padc or tmm-madc */
+    if(sc->mode == MADC_MODE) {
+        send_desc->addr = (UINT64)xdata;
+    }
+    else if(sc->mode == PADC_MODE) {
+        //send_desc->addr = vtophys(xdata);
+    }
+
+    send_desc->len = xdata_len;
+    send_desc->type = TX_BUF;
+    send_desc->sop = 1;
+    send_desc->eop = 1;
+
+    /* Check for vlan tag */
+    /* Hack get a DID from a vlan tag */
+    //err = descsock_get_vlantag(pkt, &vlan_tag);
+    if(err == ERR_OK) {
+        if(sc->descsock_l2_override) {
+            send_desc->did = DESCSOCK_SET_DID(vlan_tag);
+            /* Set the DIR flag in descriptor */
+            send_desc->flags |= (1 << 8);
+            //vlan_insert_tag(pkt, vlan_tag, TRUE);
+            /* descsock_print_pkt(pkt); */
+        }
+    }
+
+    /*
+     * Alloc clean context from queue
+     * Save a reference to this packet to clean up later when a tx completion arrives
+     */
+    clean_ctx = FIXEDQ_ALLOC(sc->tx_queue.completions[tier]);
+    if(clean_ctx == NULL) {
+        /* tx completions queue is full */
+        DESCSOCK_DEBUGF("clean ctx fifo is full\n");
+        return ERR_BUF;
+    }
+
+    clean_ctx->desc = send_desc;
+    clean_ctx->pkt = buf;
+
+    /* Advance producer index on send ring */
+    tx_send_advance_producer(sc, tier);
+
+    return ERR_OK;
 }
 /*
  * device configuration
@@ -1383,67 +1413,7 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
     return ERR_OK;
 }
 
-/* send a single frag packet */
-err_t
-descsock_tx_single_desc_pkt(struct descsock_softc * sc, struct packet *pkt, UINT32 tier)
-{
 
-    void *xdata = NULL;
-    UINT16 xdata_len = 0;
-    UINT16 vlan_tag = 0;
-    err_t err = ERR_OK;
-    tx_completions_ctx_t *clean_ctx;
-    laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
-    laden_buf_desc_t *send_desc = (laden_buf_desc_t *)&tx_out_fifo->c[tx_out_fifo->prod_idx];
-
-    /* Get buf data from packet */
-    //xdata = xfrag_getptrlen(packet_data_firstfrag(pkt), &xdata_len);
-
-    /* tmm-padc or tmm-madc */
-    if(sc->mode == MADC_MODE) {
-        send_desc->addr = (UINT64)xdata;
-    }
-    else if(sc->mode == PADC_MODE) {
-        //send_desc->addr = vtophys(xdata);
-    }
-
-    send_desc->len = xdata_len;
-    send_desc->type = TX_BUF;
-    send_desc->sop = 1;
-    send_desc->eop = 1;
-
-    /* Check for vlan tag */
-    /* Hack get a DID from a vlan tag */
-    //err = descsock_get_vlantag(pkt, &vlan_tag);
-    if(err == ERR_OK) {
-        if(sc->descsock_l2_override) {
-            send_desc->did = DESCSOCK_SET_DID(vlan_tag);
-            /* Set the DIR flag in descriptor */
-            send_desc->flags |= (1 << 8);
-            //vlan_insert_tag(pkt, vlan_tag, TRUE);
-            /* descsock_print_pkt(pkt); */
-        }
-    }
-
-    /*
-     * Alloc clean context from queue
-     * Save a reference to this packet to clean up later when a tx completion arrives
-     */
-    clean_ctx = FIXEDQ_ALLOC(sc->tx_queue.completions[tier]);
-    if(clean_ctx == NULL) {
-        /* tx completions queue is full */
-        DESCSOCK_DEBUGF("clean ctx fifo is full\n");
-        return ERR_BUF;
-    }
-
-    clean_ctx->desc = send_desc;
-    clean_ctx->pkt = pkt;
-
-    /* Advance producer index on send ring */
-    tx_send_advance_producer(sc, tier);
-
-    return ERR_OK;
-}
 
 /* XXX: support multi frag packets */
 /* Send a multi frag packet */

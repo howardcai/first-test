@@ -158,9 +158,26 @@ typedef struct  {
 }rx_extra_fifo_t;
 
 typedef struct {
+    void *base;
+    UINT32 idx;
+} client_tx_buf_t;
+
+typedef struct {
     laden_buf_desc_t    *desc;
-    struct packet       *pkt;
+    client_tx_buf_t      *pkt;
 } tx_completions_ctx_t;
+
+typedef struct tx_entry {
+    SLIST_ENTRY(tx_entry) next;
+    tx_xfrag_t *xf;
+    UINT64 idx;
+} tx_entry_t;
+
+typedef struct {
+    tx_entry_t e[RING_SIZE];
+    UINT16 cons_idx;
+    UINT16 prod_idx;
+} tx_entry_fifo_t;
 
 typedef struct {
     char    c[LADEN_DESC_RING_SIZE];
@@ -221,6 +238,7 @@ struct descsock_rx {
 struct descsock_tx {
     empty_desc_fifo_t                           inbound_descriptors[NUM_TIERS];
     laden_desc_fifo_t                           outbound_descriptors[NUM_TIERS];
+    tx_entry_fifo_t                             tx_entry_fifo;
     FIXEDQ(, tx_completions_ctx_t, RING_SIZE)   completions[NUM_TIERS];
     int                                         socket_fd[NUM_TIERS];
 };
@@ -262,10 +280,6 @@ struct descsock_softc {
     descsock_sep_t             sep_sockets[DESCSOCK_MAX_CPU];
   };
 
-typedef struct {
-    void *base;
-    UINT32 idx;
-} client_tx_buf_t;
 
 /*
  * device interface functions
@@ -280,7 +294,7 @@ BOOL descsock_poll(struct dev_poll_param *param, f5device_t *devp);
  */
 // static err_t descsock_ifup(struct ifnet *ifp);
 // static err_t descsock_ifdown(struct ifnet *ifp);
-err_t descsock_ifoutput(struct descsock_softc *sc, void *pkt);
+err_t descsock_ifoutput(struct descsock_softc *sc, client_tx_buf_t *buf);
 
 int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id);
 err_t descsock_setup(struct descsock_softc *sc);
