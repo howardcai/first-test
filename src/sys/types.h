@@ -9,6 +9,8 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#include <stdbool.h>
+
 #define GLOBALSET
 #define BUF_SIZE                2048
 /*
@@ -28,13 +30,9 @@ typedef __uint128_t             UINT128;
 #endif
 typedef unsigned long           UINTPTR;
 typedef long                    INTPTR;
-#ifndef _LP64
-typedef unsigned long long      UINTMAX;
-typedef long long               INTMAX;
-#else
-typedef unsigned long           UINTMAX;
-typedef long                    INTMAX;
-#endif
+
+typedef unsigned long           SIZE;
+
 #ifdef TRUE
 #undef TRUE
 #endif
@@ -42,8 +40,7 @@ typedef long                    INTMAX;
 #undef FALSE
 #endif
 typedef enum { FALSE, TRUE }    BOOL;
-
-typedef unsigned long           SIZE;
+typedef double                  DOUBLE;
 
 /*
  * Basic file I/O

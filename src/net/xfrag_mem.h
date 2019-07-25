@@ -19,14 +19,14 @@ typedef struct rx_xfrag {
     TAILQ_ENTRY(rx_xfrag) xfrag_entry;
     UINT16  len;
     void    *base;
-    BOOL    locked;
+    bool    locked;
 }rx_xfrag_t;
 
 typedef struct tx_xfrag {
     TAILQ_ENTRY(tx_xfrag) xfrag_entry;
     UINT16  len;
     void    *base;
-    BOOL    locked;
+    bool    locked;
     UINT64  idx;
 } tx_xfrag_t;
 

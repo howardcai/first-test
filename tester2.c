@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <netinet/ip.h>
 #include <net/ethernet.h>
@@ -21,7 +22,8 @@ void prep_dummypkt(void *buf_base);
 
 int main(int argc, char *argv[]) {
 
-    descsock_client_tx_buf_t *buf;
+    descsock_client_tx_buf_t *txbuf;
+    void *rxbuf;
     int res;
 
     descsock_client_spec_t *client = malloc(sizeof(descsock_client_spec_t));
@@ -39,36 +41,44 @@ int main(int argc, char *argv[]) {
 
 
 
-    buf = descsock_client_alloc_buf();
-    if(buf == NULL) {
+    txbuf = descsock_client_alloc_buf();
+    rxbuf = malloc(2048);
+
+    if(txbuf == NULL || rxbuf == NULL) {
         printf("buf is null\n");
         exit(EXIT_FAILURE);
     }
 
-    prep_dummypkt(buf->base);
+    prep_dummypkt(txbuf->base);
+    txbuf->len = ETHER_HEADER_LEN + IP_HEADER_LEN + sizeof(descsock_client_tx_buf_t);
 
     int ret = 0;
+    printf("Sending buf %p\n", txbuf->base);
+
+    ret = descsock_client_send(txbuf, txbuf->len, 0);
+    if(!ret) {
+        printf("Failed to send\n");
+        exit(EXIT_FAILURE);
+    }
+
     while(1) {
 
-        printf("Sending buf %p\n", buf->base);
-        ret = descsock_client_send(buf, 2048, 0);
 
-        if(!ret) {
-            printf("Failed to send\n");
+        ret = descsock_client_poll(0);
+        if(ret) {
+            printf("Packets ready to be consumed\n");
+            descsock_client_recv(rxbuf, 2048, 0);
             break;
         }
-        printf("Sent buf\n");
-        sleep(2);
+        else {
+            printf("no packets\n");
+        }
 
-        printf("Receving buf\n");
-        descsock_client_poll(0);
         sleep(2);
-
-        break;
     }
 
 
-    descsock_client_free_buf(buf);
+    descsock_client_free_buf(txbuf);
 
     free(client);
 

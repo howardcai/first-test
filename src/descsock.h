@@ -143,10 +143,10 @@ typedef struct {
 
 
 typedef struct  {
-    void *frag;
-    void *xdata;
+    // void *frag;
+    // void *xdata;
     UINT64 phys;
-    rx_xfrag_t *xf;
+    rx_xfrag_t *rx_xfrag;
 
 } rx_extra_t;
 
@@ -238,7 +238,9 @@ struct descsock_rx {
     empty_desc_fifo_t                           outbound_descriptors[NUM_TIERS];
     rx_extra_fifo_t                             pkt_extras[NUM_TIERS];
     FIXEDQ(, laden_buf_desc_t *, RING_SIZE)     complete_pkt[NUM_TIERS];
+    FIXEDQ(, struct client_rx_buf*, RING_SIZE)   ready_bufs;
     int                                         socket_fd[NUM_TIERS];
+
 };
 
 struct descsock_tx {
@@ -305,7 +307,7 @@ err_t descsock_teardown();
 /*
  * library client API
  */
-int descsock_send(void *handle, UINT64 len);
+int descsock_send(void *handle, UINT32 len);
 int descsock_recv(struct descsock_softc *sc);
 
 client_tx_buf_t* descsock_alloc_tx_xfrag();

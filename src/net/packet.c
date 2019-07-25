@@ -8,6 +8,12 @@
 
 static FIXEDQ(, struct client_rx_buf, RING_SIZE)   client_rx_bufstack;
 
+
+void packet_init_pool()
+{
+    FIXEDQ_INIT(client_rx_bufstack);
+}
+
 BOOL packet_check(struct packet *pkt)
 {
     return FALSE;

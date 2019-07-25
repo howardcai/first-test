@@ -16,8 +16,7 @@
  */
 #include <stdint.h>
 #include <errno.h>
-
-
+#include <assert.h>
 /*
  * Maximum length of a file path parameter or field used with this library.
  */
@@ -101,9 +100,11 @@ extern volatile const descsock_client_stats_t *descsock_stats;
 
 typedef struct {
     void *base;
-    uint32_t idx;
     uint32_t len;
+    uint64_t idx;
 } descsock_client_tx_buf_t;
+
+/* XXX: put a static asser here to make sure sizeof(descsock_client_tx_buf_t ) == 20 */
 
 typedef struct {
     /*

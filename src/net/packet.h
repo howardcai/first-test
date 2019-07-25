@@ -15,6 +15,8 @@ struct packet {
     BOOL locked;
 };
 
+void packet_init_pool(void);
+
 BOOL packet_check(struct packet *pkt);
 
 void packet_free(struct client_rx_buf *buf);

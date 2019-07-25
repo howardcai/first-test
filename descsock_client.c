@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "src/descsock.h"
 #include "src/kern/sys.h"
@@ -89,7 +90,15 @@ int
 descsock_client_poll(int event_mask)
 {
     // call descsock_poll to read rx sockets for any descriptor
-    //descsock_poll()
+
+    /* Check for received packets */
+    bool ret = descsock_poll(NULL, NULL);
+    printf("ret is %d\n", ret);
+    if(ret) {
+        // got a packet
+        return 1;
+    }
+
     return 0;
 }
 

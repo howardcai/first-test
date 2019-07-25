@@ -33,6 +33,7 @@ void rx_xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
     rx_xfrag_t *xf;
 
     for(i = 0; i < num_of_bufs; i++) {
+        // XXX: Remove malloc later
         xf = malloc(sizeof(rx_xfrag_t));
         if(xf == NULL){
             printf("Failed to malloc rx_xfrag_t\n");
@@ -88,6 +89,7 @@ void tx_xfrag_pool_init(void *poolbase, UINT64 pool_len, int num_of_bufs)
     int i;
 
     for(i = 0; i < num_of_bufs; i++) {
+        // XXX: Remove malloc later
         xf = malloc(sizeof(tx_xfrag_t));
         if(xf == NULL) {
             printf("Failed to malloc tx_xfrag_t\n");

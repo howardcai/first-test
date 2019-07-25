@@ -16,6 +16,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "sys/types.h"
 #include "sys/hudconf.h"
@@ -150,6 +151,7 @@ int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id
 
     SLIST_INIT(&sc->tx_queue.tx_ctx_listhead);
     FIXEDQ_INIT(sc->tx_queue.client_buf_stack);
+    FIXEDQ_INIT(sc->rx_queue.ready_bufs);
 
     /* build producer descriptors */
     DESCSOCK_LOG("Producing xdatas\n");
@@ -215,6 +217,7 @@ descsock_init_conn(struct descsock_softc *sc)
     //xfrag_pool_init(sc->dma_region.base, sc->dma_region.len);
     rx_xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, 256);
     tx_xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, 256);
+    packet_init_pool();
 
     DESCSOCK_LOG("recived master socket %d\n", sc->master_socket_fd);
 
@@ -286,6 +289,8 @@ descsock_alloc_tx_xfrag()
     ctx->tx_xfrag = tx_xfrag;
     ctx->client_buf = client_buf;
 
+    /* add tx_context to list of pending  */
+    SLIST_INSERT_HEAD(&sc->tx_queue.tx_ctx_listhead, ctx, next);
     buf_idx++;
 
     return client_buf;
@@ -317,12 +322,13 @@ err_t descsock_setup(struct descsock_softc *sc)
     return ERR_OK;
 }
 
-int descsock_send(void *handle, UINT64 len)
+int descsock_send(void *handle, UINT32 len)
 {
     err_t ret;
     struct tx_context *ctx;
 
     client_tx_buf_t *buf = (client_tx_buf_t *)handle;
+    //buf->len = len;
 
     SLIST_FOREACH(ctx, &sc->tx_queue.tx_ctx_listhead, next) {
         if(buf->idx == ctx->idx) {
@@ -398,8 +404,6 @@ err_t
 descsock_tx_single_desc_pkt(struct descsock_softc * sc, client_tx_buf_t *buf, UINT32 tier)
 {
 
-    void *xdata = NULL;
-    UINT16 xdata_len = 0;
     UINT16 vlan_tag = 0;
     err_t err = ERR_OK;
     tx_completions_ctx_t *clean_ctx;
@@ -410,14 +414,14 @@ descsock_tx_single_desc_pkt(struct descsock_softc * sc, client_tx_buf_t *buf, UI
     //xdata = xfrag_getptrlen(packet_data_firstfrag(pkt), &xdata_len);
 
     /* tmm-padc or tmm-madc */
-    if(sc->mode == MADC_MODE) {
-        send_desc->addr = (UINT64)xdata;
-    }
-    else if(sc->mode == PADC_MODE) {
-        //send_desc->addr = vtophys(xdata);
-    }
-
-    send_desc->len = xdata_len + ETHER_CRC_LEN;
+    // if(sc->mode == MADC_MODE) {
+    //     send_desc->addr = (UINT64)xdata;
+    // }
+    // else if(sc->mode == PADC_MODE) {
+    //     //send_desc->addr = vtophys(xdata);
+    // }
+    send_desc->addr = (UINT64) buf->base;
+    send_desc->len = buf->len + ETHER_CRC_LEN;
     send_desc->type = TX_BUF;
     send_desc->sop = 1;
     send_desc->eop = 1;
@@ -451,6 +455,12 @@ descsock_tx_single_desc_pkt(struct descsock_softc * sc, client_tx_buf_t *buf, UI
 
     /* Advance producer index on send ring */
     tx_send_advance_producer(sc, tier);
+
+    /* Send packets here */
+    tx_send_advance_consumer(sc, 0);
+
+
+
 
     return ERR_OK;
 }
@@ -1040,9 +1050,9 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
 {
     UINT32 work = 0;
     err_t err;
-    int tier, avail, flushed_bytes;
+    int tier, avail, flushed_descriptors;
     struct client_rx_buf *pkt;
-    rx_xfrag_t *xf;
+    rx_xfrag_t *rx_xfrag;
 
     //struct ifnet *ifp = (struct ifnet *)devp;
     //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
@@ -1074,8 +1084,10 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
         avail = laden_desc_fifo_avail(tx_out_fifo);
         if(avail >= LADEN_DESC_LEN) {
             /* XXX: if flushed_bytes is -1 then we encountered an error writing to socket */
-            flushed_bytes = tx_send_advance_consumer(sc, tier);
-            if(flushed_bytes == -1) {
+
+            flushed_descriptors = tx_send_advance_consumer(sc, tier);
+             printf("flushed bytes %d\n", flushed_descriptors);
+            if(flushed_descriptors == -1) {
                 DESCSOCK_LOG("Failed to write to socket\n");
             }
         }
@@ -1084,6 +1096,7 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
          * POLL rx return ring for tier
          */
         avail = rx_receive_advance_producer(sc, tier);
+
 
         /* if not packets have arrived on this tier, poll the next one */
         if(avail == 0) {
@@ -1114,11 +1127,13 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
                 break;
             }
 
-            rx_extra_t *ex = (rx_extra_t *)&extras_fifo->extra[extras_fifo->cons_idx];
+            rx_extra_t *pkt_extras = (rx_extra_t *)&extras_fifo->extra[extras_fifo->cons_idx];
 
-            xf = ex->frag;
-            xf->base = ex->xdata;
-            xf->len = desc->len;
+            rx_xfrag = pkt_extras->rx_xfrag;
+            rx_xfrag->len = desc->len;
+
+            pkt->base = rx_xfrag->base;
+            pkt->len = desc->len;
 
             /* DMA buf data into packet */
             //packet_data_dma(pkt, xf, desc->len);
@@ -1135,6 +1150,9 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
             /* XXX: Remove later */
            // descsock_print_pkt(pkt);
             //ifinput(ifp, pkt);
+
+            /* add pkt to rx ready to consume queueu */
+            FIXEDQ_INSERT(sc->rx_queue.ready_bufs, pkt);
 
             work++;
             sc->stats.pkt_rx++;
@@ -1410,7 +1428,7 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
     UINT16 produce_buf_idx = (fifo->prod_idx / EMPTY_DESC_LEN);
 
     rx_extra_fifo_t *extra_fifo = &sc->rx_queue.pkt_extras[tier];
-    rx_extra_t *ex;
+    rx_extra_t *pkt_extras;
 
     //xfrag = packet_data_newfrag(&base);
     xfrag = rx_xfrag_alloc(99);
@@ -1425,109 +1443,17 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
         DESCSOCK_LOG("NULL desc\n");
         exit(-1);
     }
-    ex = (rx_extra_t *)&extra_fifo->extra[produce_buf_idx];
-
-    // if(sc->mode == MADC_MODE) {
-    //     /* Use virtual addresses for tmm madc */
-    //     producer_desc->addr = (UINT64)xfrag->base;
-    // }
-    // else {
-    //     /* Use guest physical addresses for tmm padc*/
-    //     //producer_desc->addr = vtophys(base);
-    // }
+    pkt_extras = (rx_extra_t *)&extra_fifo->extra[produce_buf_idx];
 
     producer_desc->addr = (UINT64)xfrag->base;
     producer_desc->len = BUF_SIZE;
     //ex->frag = xfrag;
-    ex->xf = xfrag;
-    ex->xdata = xfrag->base;
-    ex->phys = producer_desc->addr;
+    pkt_extras->rx_xfrag = xfrag;
+
+    pkt_extras->phys = producer_desc->addr;
 
     return ERR_OK;
 }
-
-
-
-/* XXX: support multi frag packets */
-/* Send a multi frag packet */
-// static err_t
-// descsock_tx_multi_desc_pkt(struct descsock_softc * sc, struct packet *pkt, UINT32 tier)
-// {
-//     err_t err = ERR_OK;
-//     struct xfrag *xf;
-//     void *xdata;
-//     UINT16 xdata_len = 0;
-//     int xfrag_count = 0;
-//     laden_buf_desc_t *send_desc = NULL;
-//     tx_completions_ctx_t *clean_ctx = NULL;
-//     laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
-
-//     if (packet_data_fragcount(pkt) > DESCSOCK_MAX_TX_XFRAGS_PER_PACKET) {
-//         /*
-//          * This is pathological case. We should try to compact it
-//          * and reduce # frags. This is expensive operation which
-//          * involves data movement.
-//          */
-//         packet_data_compact(pkt);
-//         if (packet_data_fragcount(pkt) > DESCSOCK_MAX_TX_XFRAGS_PER_PACKET) {
-//             /* Frag count is still to big, drop it */
-//             sc->stats.pkt_drop++;
-//             err = ERR_TOOBIG;
-//             goto out;
-//         }
-//     }
-
-//     /* Slice packet for multiple send descriptors */
-//     packet_data_xfrag_foreach(xf, pkt) {
-//         xdata = xfrag_getptrlen(xf, &xdata_len);
-
-//         send_desc = (laden_buf_desc_t *)&tx_out_fifo->c[tx_out_fifo->prod_idx];
-//         /* tmm-padc or tmm-madc */
-//         if(sc->mode == MADC_MODE) {
-//             send_desc->addr = (UINT64)xdata;
-//         }
-//         else if(sc->mode == PADC_MODE) {
-//             send_desc->addr = vtophys(xdata);
-//         }
-
-//         send_desc->len = xdata_len;
-//         send_desc->type = TX_BUF;
-
-//         /* Handle vlan tag */
-//         if (packet_test_flag(pkt, PACKET_FLAG_ETHERTYPE_VLAN)) {
-//         }
-//         else {
-//         }
-
-//         /* If we have the first xfrag, set the start-of-packet flag */
-//         if(xfrag_count == 0) {
-//             send_desc->sop = 1;
-//         }
-//         /*
-//          * Alloc clean context from queue
-//          * Save a reference to this packet to clean up later when a tx completion arrives
-//          */
-//         clean_ctx = FIXEDQ_ALLOC(sc->tx_queue.completions[tier]);
-//         if(clean_ctx == NULL) {
-//             /* sc->sent_completions_ring is full */
-//             DESCSOCK_DEBUGF("clean ctx fifo is full\n");
-//             err = ERR_BUF;
-//             goto out;
-//         }
-//         clean_ctx->desc = send_desc;
-//         clean_ctx->pkt = NULL;
-
-//         xfrag_count++;
-
-//         /* Get another fresh send descriptor */
-//         tx_send_advance_producer(sc, tier);
-//     }
-//     send_desc->eop = 1;
-//     clean_ctx->pkt = pkt;
-
-// out:
-//     return err;
-// }
 
 /* Advance producer index on send ring */
 inline err_t
@@ -1542,7 +1468,7 @@ tx_send_advance_producer(struct descsock_softc * sc, UINT32 tier)
 
 /*
  * Adavances the consumer index after writing descriptors/bytes to socket
- * returns the number of free bytes on ring
+ * returns the number flushed descriptors
  */
 inline int
 tx_send_advance_consumer(struct descsock_softc * sc, UINT32 tier)
@@ -1613,7 +1539,7 @@ flush_bytes_to_socket(struct descsock_softc * sc, UINT32 tx, int qos)
 
     /* Make the socket I/O call */
     advance = descsock_writev_file(fd, iov, (1 + ring_wrap));
-    DESCSOCK_DEBUGF("Writen bytes %d\n", advance);
+    printf("Writen bytes %d\n", advance);
 
     if (advance > 0) {
         /* We wrote data out to the socket, update consumer idx and return number of bytes writen */
@@ -1688,7 +1614,7 @@ refill_inbound_fifo_from_socket(struct descsock_softc *sc, UINT32 tx, UINT32 qos
 
     /* Make the socket I/O call */
     advance = descsock_readv_file(fd, iov, (1 + ring_wrap));
-    DESCSOCK_DEBUGF("read bytes %d\n", advance);
+    printf("read bytes %d\n", advance);
     if (advance > 0) {
         /* We read bytes from socket, advance the producer idx */
         *ptr_prod = (prod_idx + advance) & ring_mask;
