@@ -1,12 +1,19 @@
 #include <stdio.h>
+#include "../sys/fixed_queue.h"
 #include "../sys/types.h"
 #include "packet.h"
+
+#define RING_SIZE 256
+
+
+static FIXEDQ(, struct client_rx_buf, RING_SIZE)   client_rx_bufstack;
 
 BOOL packet_check(struct packet *pkt)
 {
     return FALSE;
 }
-void packet_free(struct packet *pkt)
+
+void packet_free(struct client_rx_buf *buf)
 {
 
 }
@@ -25,12 +32,18 @@ void packet_clear_flag(struct packet *pkt, UINT32 flag)
 
 }
 
-struct packet * packet_alloc(void *buf)
+struct client_rx_buf* packet_alloc()
 {
-    return NULL;
+    struct client_rx_buf *buf = FIXEDQ_ALLOC(client_rx_bufstack);
+    if(buf == NULL) {
+        printf("empty client_rx_bufs\n");
+        return NULL;
+    }
+
+    return buf;
 }
 
-void packet_data_dma(struct packet *pkt, struct xfrag_item *xf, UINT32 len)
-{
-
-}
+// void packet_data_dma(struct packet *pkt, struct xfrag_item *xf, UINT32 len)
+// {
+//     printf("xxx: check valid dma\n");
+// }

@@ -40,14 +40,24 @@ int main(int argc, char *argv[]) {
 
 
     buf = descsock_client_alloc_buf();
+    if(buf == NULL) {
+        printf("buf is null\n");
+        exit(EXIT_FAILURE);
+    }
 
     prep_dummypkt(buf->base);
 
-
+    int ret = 0;
     while(1) {
 
         printf("Sending buf %p\n", buf->base);
-        descsock_client_send(buf, 2048, 0);
+        ret = descsock_client_send(buf, 2048, 0);
+
+        if(!ret) {
+            printf("Failed to send\n");
+            break;
+        }
+        printf("Sent buf\n");
         sleep(2);
 
         printf("Receving buf\n");

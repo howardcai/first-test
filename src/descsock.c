@@ -98,9 +98,6 @@ err_t descsock_teardown();
 
 
 struct descsock_softc *sc;
-
-
-static tx_xfrag_t *active_tx_bufs[256];
 static UINT64 buf_idx = 0;
 
 int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
@@ -253,7 +250,8 @@ out:
  * Allocate a tx xfrag from tx_xfrag pool
  * Save a reference to that tx xfrag
  */
-client_tx_buf_t * descsock_alloc_tx_xfrag()
+client_tx_buf_t *
+descsock_alloc_tx_xfrag()
 {
     tx_xfrag_t *tx_xfrag;
     client_tx_buf_t *client_buf;
@@ -265,13 +263,13 @@ client_tx_buf_t * descsock_alloc_tx_xfrag()
         goto err_out;
     }
 
-
     client_buf = FIXEDQ_ALLOC(sc->tx_queue.client_buf_stack);
     if(client_buf == NULL) {
         printf("no more client bufs\n");
         goto err_out;
     }
 
+    // XXX: Remove malloc, have a stack of pre-allocated tx_contexts
     ctx = malloc(sizeof(struct tx_context));
     if(ctx == NULL) {
         printf("Failed to malloc tx ctx\n");
@@ -279,9 +277,12 @@ client_tx_buf_t * descsock_alloc_tx_xfrag()
     }
 
     tx_xfrag->idx = buf_idx;
-    client_buf->idx = buf_idx;
-    ctx->idx = buf_idx;
+    tx_xfrag->locked = TRUE;
 
+    client_buf->idx = buf_idx;
+    client_buf->base = tx_xfrag->base;
+
+    ctx->idx = buf_idx;
     ctx->tx_xfrag = tx_xfrag;
     ctx->client_buf = client_buf;
 
@@ -297,16 +298,18 @@ void descsock_free_tx_xfrag(void *handle)
 {
     client_tx_buf_t *buf = (client_tx_buf_t *)handle;
     // XXX: asserts here
+    struct tx_context *ctx;
 
-    tx_xfrag_t *xf = active_tx_bufs[buf->idx];
-    if(xf == NULL) {
-        printf("tx_xfrag_t at index: %d is null\n", buf->idx);
-        return;
+    SLIST_FOREACH(ctx, &sc->tx_queue.tx_ctx_listhead, next) {
+           if(ctx->idx == buf->idx) {
+               // remove tx_ctx
+                SLIST_REMOVE(&sc->tx_queue.tx_ctx_listhead, ctx, tx_context, next);
+
+                tx_xfrag_free(ctx->tx_xfrag);
+           }
     }
 
-    active_tx_bufs[buf_idx] = NULL;
 
-    tx_xfrag_free(xf);
 }
 
 err_t descsock_setup(struct descsock_softc *sc)
@@ -316,16 +319,22 @@ err_t descsock_setup(struct descsock_softc *sc)
 
 int descsock_send(void *handle, UINT64 len)
 {
-    client_tx_buf_t *buf = (client_tx_buf_t *)handle;
-    tx_xfrag_t *xf = active_tx_bufs[buf->idx];
+    err_t ret;
+    struct tx_context *ctx;
 
-    if(xf == NULL) {
-        printf("null tx_xfrag_t at index: %d\n", buf->idx);
+    client_tx_buf_t *buf = (client_tx_buf_t *)handle;
+
+    SLIST_FOREACH(ctx, &sc->tx_queue.tx_ctx_listhead, next) {
+        if(buf->idx == ctx->idx) {
+            printf("Sending buf %p\n", buf->base);
+            ret = descsock_ifoutput(sc, buf);
+            // remove tx_context from list
+
+            // add tx_completion_ctx to queue
+        }
     }
 
-    int ret = descsock_ifoutput(sc, buf);
-
-    return ret;
+    return (ret == ERR_OK)? 1: -1;
 }
 
 int descsock_recv(struct descsock_softc *sc)
@@ -408,7 +417,7 @@ descsock_tx_single_desc_pkt(struct descsock_softc * sc, client_tx_buf_t *buf, UI
         //send_desc->addr = vtophys(xdata);
     }
 
-    send_desc->len = xdata_len;
+    send_desc->len = xdata_len + ETHER_CRC_LEN;
     send_desc->type = TX_BUF;
     send_desc->sop = 1;
     send_desc->eop = 1;
@@ -1032,12 +1041,12 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
     UINT32 work = 0;
     err_t err;
     int tier, avail, flushed_bytes;
-    struct packet *pkt;
-    struct xfrag_item *xf;
+    struct client_rx_buf *pkt;
+    rx_xfrag_t *xf;
 
     //struct ifnet *ifp = (struct ifnet *)devp;
     //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
-    struct descsock_softc *sc = NULL;
+    //struct descsock_softc *sc = NULL;
     laden_buf_desc_t *desc;
     laden_desc_fifo_t *tx_out_fifo;
 
@@ -1090,7 +1099,7 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
         /* Go through all received descriptors */
         while(!FIXEDQ_EMPTY(sc->rx_queue.complete_pkt[tier])) {
 
-            pkt = packet_alloc(NULL);
+            pkt = packet_alloc();
             if(pkt == NULL) {
                 DESCSOCK_LOG("packet_alloc returned NULL\n");
                 goto out;
@@ -1112,7 +1121,7 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
             xf->len = desc->len;
 
             /* DMA buf data into packet */
-            packet_data_dma(pkt, xf, desc->len);
+            //packet_data_dma(pkt, xf, desc->len);
 
             /* Adavance consumer index on return ring */
             rx_receive_advance_consumer(sc, tier);

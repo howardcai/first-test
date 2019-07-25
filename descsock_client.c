@@ -89,6 +89,7 @@ int
 descsock_client_poll(int event_mask)
 {
     // call descsock_poll to read rx sockets for any descriptor
+    //descsock_poll()
     return 0;
 }
 

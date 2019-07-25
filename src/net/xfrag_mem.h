@@ -4,6 +4,9 @@
 
 #include "../sys/types.h"
 
+#define XFRAG_SIZE 2048
+
+
 typedef struct {
     UINT64 xfrag_rx_used;
     UINT64 xfrag_rx_avail;
@@ -11,13 +14,6 @@ typedef struct {
     UINT64 xfrag_tx_used;
     UINT64 xfrag_tx_avail;
 } xfrag_ussage_stats_t;
-
-struct xfrag_item {
-    SLIST_ENTRY(xfrag_item) next;
-    void    *base;
-    UINT32  len;
-    BOOL    locked;
-};
 
 typedef struct rx_xfrag {
     TAILQ_ENTRY(rx_xfrag) xfrag_entry;

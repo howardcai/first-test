@@ -24,6 +24,7 @@
 #define DESCSOCK_MAX_QOS_TIERS      (4)
 #define DESCSOCK_MTU                (1 << 13) /* 8K */
 
+#define ETHER_CRC_LEN               4
 
 
 /*
@@ -140,11 +141,13 @@ typedef struct {
 #define PADC_PLATFORM       "Z101"
 #define DESCSOCK_SET_DID(x) (x & ((1 << 9) -1))
 
+
 typedef struct  {
     void *frag;
     void *xdata;
     UINT64 phys;
     rx_xfrag_t *xf;
+
 } rx_extra_t;
 
 /* Store extra info about packet data here, for cleaning packets later on Rx */
@@ -157,10 +160,12 @@ typedef struct  {
     UINT16 rx_prod_idx;
 }rx_extra_fifo_t;
 
+
+
 typedef struct {
     void *base;
     UINT32 len;
-    UINT32 idx;
+    UINT64 idx;
 } client_tx_buf_t;
 
 typedef struct {
@@ -227,6 +232,7 @@ typedef struct {
     int tx_fd[NUM_TIERS];
 } descsock_sep_t;
 
+
 struct descsock_rx {
     laden_desc_fifo_t                           inbound_descriptors[NUM_TIERS];
     empty_desc_fifo_t                           outbound_descriptors[NUM_TIERS];
@@ -245,6 +251,7 @@ struct descsock_tx {
     FIXEDQ(, client_tx_buf_t, RING_SIZE)        client_buf_stack;
     FIXEDQ(, tx_completions_ctx_t, RING_SIZE)   completions[NUM_TIERS];
     SLIST_HEAD(tx_ctx, tx_context)              tx_ctx_listhead;
+
 };
 
 typedef struct {

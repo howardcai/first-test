@@ -78,4 +78,9 @@ struct ifnet {
     char name[256];
 };
 
+struct client_rx_buf {
+    void *base;
+    UINT32 len;
+    UINT64 idx;
+};
 #endif /* _TYPES_H */
