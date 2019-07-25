@@ -101,7 +101,8 @@ extern volatile const descsock_client_stats_t *descsock_stats;
 
 typedef struct {
     void *base;
-    const uint32_t idx;
+    uint32_t idx;
+    uint32_t len;
 } descsock_client_tx_buf_t;
 
 typedef struct {

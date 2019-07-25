@@ -31,7 +31,7 @@ typedef struct tx_xfrag {
     UINT16  len;
     void    *base;
     BOOL    locked;
-    UINT32  idx;
+    UINT64  idx;
 } tx_xfrag_t;
 
 

@@ -159,6 +159,7 @@ typedef struct  {
 
 typedef struct {
     void *base;
+    UINT32 len;
     UINT32 idx;
 } client_tx_buf_t;
 
@@ -167,17 +168,6 @@ typedef struct {
     client_tx_buf_t      *pkt;
 } tx_completions_ctx_t;
 
-typedef struct tx_entry {
-    SLIST_ENTRY(tx_entry) next;
-    tx_xfrag_t *xf;
-    UINT64 idx;
-} tx_entry_t;
-
-typedef struct {
-    tx_entry_t e[RING_SIZE];
-    UINT16 cons_idx;
-    UINT16 prod_idx;
-} tx_entry_fifo_t;
 
 typedef struct {
     char    c[LADEN_DESC_RING_SIZE];
@@ -212,10 +202,20 @@ typedef struct {
 #define DESCSOCK_MAX_CPU        2
 
 #define VIRTIO_DMA_MASTER "dma-master"
-typedef struct {
-    char rx_paths[NUM_TIERS][DESCSOCK_PATH_MAX];
-    char tx_paths[NUM_TIERS][DESCSOCK_PATH_MAX];
-} virtio_ports_paths_t;
+
+struct tx_context {
+    SLIST_ENTRY(tx_context)     next;
+    tx_xfrag_t                  *tx_xfrag;
+    client_tx_buf_t             *client_buf;
+    laden_buf_desc_t            *desc;
+    UINT64                      idx;
+};
+struct tx_entry {
+    SLIST_ENTRY(tx_entry) entry;
+    tx_xfrag_t *xf;
+    client_tx_buf_t *buf;
+    UINT64 idx;
+};
 
 typedef enum {
     PADC_MODE,
@@ -236,12 +236,17 @@ struct descsock_rx {
 };
 
 struct descsock_tx {
+    /* Sockets for sending send descriptors */
+    int                                         socket_fd[NUM_TIERS];
+    /* socket facing byte fifos */
     empty_desc_fifo_t                           inbound_descriptors[NUM_TIERS];
     laden_desc_fifo_t                           outbound_descriptors[NUM_TIERS];
-    tx_entry_fifo_t                             tx_entry_fifo;
+
+    FIXEDQ(, client_tx_buf_t, RING_SIZE)        client_buf_stack;
     FIXEDQ(, tx_completions_ctx_t, RING_SIZE)   completions[NUM_TIERS];
-    int                                         socket_fd[NUM_TIERS];
+    SLIST_HEAD(tx_ctx, tx_context)              tx_ctx_listhead;
 };
+
 typedef struct {
     char    path[DESCSOCK_PATH_MAX];
     void    *base;
@@ -250,11 +255,7 @@ typedef struct {
 
 /* Device instance structure. */
 struct descsock_softc {
-   // struct ifnet                ifnet;
-    //struct ifmedia              ifmedia;
 
-    /* Internal Implementation Fields */
-    //struct timer_periodic       stats_timer;
     int                         master_socket_fd;
     int                         sock_fd[DESCSOCK_MAX_QOS_TIERS * 2];
     int                         n_qos;
@@ -268,16 +269,9 @@ struct descsock_softc {
 
     BOOL                                        descsock_l2_override;
 
-    /*
-     * The information regarding tmm hugepage memory, path, size, base address, etc...
-     * is stored here
-     */
-    struct tmm_memory          *tmm_driver_mem;
     dma_region_t               dma_region;
-
     descsock_mode_t            mode;
-    virtio_ports_paths_t       virtio_ports[DESCSOCK_MAX_CPU];
-    descsock_sep_t             sep_sockets[DESCSOCK_MAX_CPU];
+
   };
 
 

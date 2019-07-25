@@ -98,7 +98,7 @@ err_t descsock_teardown();
 
 
 struct descsock_softc *sc;
-SLIST_HEAD(tx_list, tx_entry) tx_list_head;
+
 
 static tx_xfrag_t *active_tx_bufs[256];
 static UINT64 buf_idx = 0;
@@ -149,7 +149,10 @@ int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id
         FIXEDQ_INIT(sc->tx_queue.completions[i]);
         FIXEDQ_INIT(sc->rx_queue.complete_pkt[i]);
     }
-    SLIST_INIT(&tx_list_head);
+
+
+    SLIST_INIT(&sc->tx_queue.tx_ctx_listhead);
+    FIXEDQ_INIT(sc->tx_queue.client_buf_stack);
 
     /* build producer descriptors */
     DESCSOCK_LOG("Producing xdatas\n");
@@ -246,27 +249,48 @@ out:
     return err;
 }
 
+/*
+ * Allocate a tx xfrag from tx_xfrag pool
+ * Save a reference to that tx xfrag
+ */
 client_tx_buf_t * descsock_alloc_tx_xfrag()
 {
-    tx_xfrag_t *xf = tx_xfrag_alloc(0);
-    xf->idx = buf_idx;
+    tx_xfrag_t *tx_xfrag;
+    client_tx_buf_t *client_buf;
+    struct tx_context *ctx;
 
-    tx_entry_t *tx_entry = (tx_entry_t *)&sc->tx_queue.tx_entry_fifo.e[sc->tx_queue.tx_entry_fifo.prod_idx];
-    tx_entry->xf = xf;
-    tx_entry->idx = buf_idx;
+    tx_xfrag = tx_xfrag_alloc(0);
+    if(tx_xfrag == NULL) {
+        printf("tx_frag pool is empty\n");
+        goto err_out;
+    }
 
-    /*Save reference to  xf in list */
-    SLIST_INSERT_HEAD(&tx_list_head, tx_entry, next);
 
-    client_tx_buf_t *client_buf = malloc(sizeof(client_tx_buf_t));
+    client_buf = FIXEDQ_ALLOC(sc->tx_queue.client_buf_stack);
+    if(client_buf == NULL) {
+        printf("no more client bufs\n");
+        goto err_out;
+    }
+
+    ctx = malloc(sizeof(struct tx_context));
+    if(ctx == NULL) {
+        printf("Failed to malloc tx ctx\n");
+        goto err_out;
+    }
+
+    tx_xfrag->idx = buf_idx;
     client_buf->idx = buf_idx;
-    client_buf->base = xf->base;
+    ctx->idx = buf_idx;
 
-    // XXX: keep track of this buf index can cause problems later if overflown
+    ctx->tx_xfrag = tx_xfrag;
+    ctx->client_buf = client_buf;
+
     buf_idx++;
 
     return client_buf;
 
+err_out:
+    return NULL;
 }
 
 void descsock_free_tx_xfrag(void *handle)
@@ -1191,8 +1215,8 @@ tx_receive_adanvace_consumer(struct descsock_softc * sc, UINT32 tier, int avail_
         FIXEDQ_REMOVE(sc->tx_queue.completions[tier]);
 
         if(tx_clean_ctx->pkt != NULL) {
-            packet_clear_flag(tx_clean_ctx->pkt, PACKET_FLAG_LOCKED);
-            packet_free(tx_clean_ctx->pkt);
+            //packet_clear_flag(tx_clean_ctx->pkt, PACKET_FLAG_LOCKED);
+           // packet_free(tx_clean_ctx->pkt);
             tx_clean_ctx->pkt = NULL;
 
             sc->stats.pkt_cleaned++;
