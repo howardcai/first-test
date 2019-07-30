@@ -212,12 +212,11 @@ descsock_init_conn(struct descsock_softc *sc)
     }
 
     /*
-     * Initialize xfrag memory pool,
+     * Initialize xfrag and packet memory pool,
      */
-    //xfrag_pool_init(sc->dma_region.base, sc->dma_region.len);
-    rx_xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, 256);
-    tx_xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, 256);
-    packet_init_pool();
+
+    xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, 256);
+    packet_init_pool(256);
 
     DESCSOCK_LOG("recived master socket %d\n", sc->master_socket_fd);
 
@@ -254,15 +253,15 @@ out:
  * Save a reference to that tx xfrag
  */
 client_tx_buf_t *
-descsock_alloc_tx_xfrag()
+descsock_alloc_xfrag()
 {
-    tx_xfrag_t *tx_xfrag;
+    struct xfrag  *xf;
     client_tx_buf_t *client_buf;
-    struct tx_context *ctx;
+   // struct tx_context *ctx;
 
-    tx_xfrag = tx_xfrag_alloc(0);
-    if(tx_xfrag == NULL) {
-        printf("tx_frag pool is empty\n");
+    xf = xfrag_alloc();
+    if(xf == NULL) {
+        printf("frag pool is empty\n");
         goto err_out;
     }
 
@@ -272,25 +271,12 @@ descsock_alloc_tx_xfrag()
         goto err_out;
     }
 
-    // XXX: Remove malloc, have a stack of pre-allocated tx_contexts
-    ctx = malloc(sizeof(struct tx_context));
-    if(ctx == NULL) {
-        printf("Failed to malloc tx ctx\n");
-        goto err_out;
-    }
-
     tx_xfrag->idx = buf_idx;
     tx_xfrag->locked = TRUE;
 
     client_buf->idx = buf_idx;
     client_buf->base = tx_xfrag->base;
 
-    ctx->idx = buf_idx;
-    ctx->tx_xfrag = tx_xfrag;
-    ctx->client_buf = client_buf;
-
-    /* add tx_context to list of pending  */
-    SLIST_INSERT_HEAD(&sc->tx_queue.tx_ctx_listhead, ctx, next);
     buf_idx++;
 
     return client_buf;
@@ -299,6 +285,19 @@ err_out:
     return NULL;
 }
 
+/* Send a buf owned by descsock client */
+int descsock_send(void *handle, UINT32 len)
+{
+    err_t ret;
+    //struct tx_context *send_ctx;
+
+    client_tx_buf_t *buf = (client_tx_buf_t *)handle;
+
+    ret = descsock_ifoutput(sc, buf);
+
+
+    return (ret == ERR_OK)? 1: -1;
+}
 void descsock_free_tx_xfrag(void *handle)
 {
     client_tx_buf_t *buf = (client_tx_buf_t *)handle;
@@ -322,29 +321,20 @@ err_t descsock_setup(struct descsock_softc *sc)
     return ERR_OK;
 }
 
-int descsock_send(void *handle, UINT32 len)
+
+
+int
+descsock_recv(void *buf, UINT32 len, int flag)
 {
-    err_t ret;
-    struct tx_context *ctx;
+    // struct client_rx_buf *xf;
 
-    client_tx_buf_t *buf = (client_tx_buf_t *)handle;
-    //buf->len = len;
+    // while(!FIXEDQ_EMPTY(sc->rx_queue.ready_bufs)) {
+    //     xf = FIXEDQ_HEAD(sc->rx_queue.ready_bufs);
+    //     printf("received buf %p %lld\n", xf->base, (UINT64)xf->base);
 
-    SLIST_FOREACH(ctx, &sc->tx_queue.tx_ctx_listhead, next) {
-        if(buf->idx == ctx->idx) {
-            printf("Sending buf %p\n", buf->base);
-            ret = descsock_ifoutput(sc, buf);
-            // remove tx_context from list
+    //     FIXEDQ_REMOVE(sc->rx_queue.ready_bufs);
+    // }
 
-            // add tx_completion_ctx to queue
-        }
-    }
-
-    return (ret == ERR_OK)? 1: -1;
-}
-
-int descsock_recv(struct descsock_softc *sc)
-{
     return 0;
 }
 
@@ -354,6 +344,10 @@ err_t descsock_teardown()
     free(hudconf.mastersocket);
 
     free(sc);
+
+    /*
+     * Free all allocated memory in queues
+     */
 
 
     return ERR_OK;
@@ -387,8 +381,6 @@ descsock_ifoutput(struct descsock_softc *sc, client_tx_buf_t *buf)
     err = descsock_tx_single_desc_pkt(sc, buf, tier);
 
     sc->stats.pkt_tx += (err == ERR_OK)? 1 : 0;
-
-
 
     if(err == ERR_OK) {
         DESCSOCK_DEBUGF("sendring cons:%d prod:%d", tx_out_fifo->cons_idx, tx_out_fifo->prod_idx);
@@ -452,6 +444,7 @@ descsock_tx_single_desc_pkt(struct descsock_softc * sc, client_tx_buf_t *buf, UI
 
     clean_ctx->desc = send_desc;
     clean_ctx->pkt = buf;
+    clean_ctx->tx_xfrag = tx_xfrag_get_byindex(buf->idx);
 
     /* Advance producer index on send ring */
     tx_send_advance_producer(sc, tier);
@@ -1051,8 +1044,8 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
     UINT32 work = 0;
     err_t err;
     int tier, avail, flushed_descriptors;
-    struct client_rx_buf *pkt;
-    rx_xfrag_t *rx_xfrag;
+    struct packet *pkt;
+    struct xfrag *xf;
 
     //struct ifnet *ifp = (struct ifnet *)devp;
     //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
@@ -1065,7 +1058,7 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
     /*
      * Iterate through and poll all tiers
      */
-    for(tier = 0; tier < NUM_TIERS; tier++) {
+    for(tier = 0; tier < 1; tier++) {
 
         /* Get fifo for current tier */
         tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
@@ -1129,11 +1122,13 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
 
             rx_extra_t *pkt_extras = (rx_extra_t *)&extras_fifo->extra[extras_fifo->cons_idx];
 
-            rx_xfrag = pkt_extras->rx_xfrag;
-            rx_xfrag->len = desc->len;
+            xf = pkt_extras->xf;
+            xf->len = desc->len;
 
-            pkt->base = rx_xfrag->base;
-            pkt->len = desc->len;
+            pkt->xf_first = xf;
+
+            /* XXX: figure out the correct packet len */
+            pkt->len = xf->len;
 
             /* DMA buf data into packet */
             //packet_data_dma(pkt, xf, desc->len);
@@ -1151,6 +1146,7 @@ descsock_poll(struct dev_poll_param *param, f5device_t *devp)
            // descsock_print_pkt(pkt);
             //ifinput(ifp, pkt);
 
+            printf("Receiving packet %p %lld\n", pkt->xf_first->data, (UINT64)pkt->xf_first->data);
             /* add pkt to rx ready to consume queueu */
             FIXEDQ_INSERT(sc->rx_queue.ready_bufs, pkt);
 
@@ -1244,7 +1240,10 @@ tx_receive_adanvace_consumer(struct descsock_softc * sc, UINT32 tier, int avail_
         if(tx_clean_ctx->pkt != NULL) {
             //packet_clear_flag(tx_clean_ctx->pkt, PACKET_FLAG_LOCKED);
            // packet_free(tx_clean_ctx->pkt);
+            printf("Cleaning tx send buf %p\n", tx_clean_ctx->tx_xfrag->base);
             tx_clean_ctx->pkt = NULL;
+            tx_xfrag_free(tx_clean_ctx->tx_xfrag);
+            FIXEDQ_REMOVE(sc->tx_queue.client_buf_stack);
 
             sc->stats.pkt_cleaned++;
         }
@@ -1419,7 +1418,7 @@ rx_send_advance_producer(struct descsock_softc *sc, UINT16 tier, int max)
 err_t
 descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
 {
-    rx_xfrag_t *xfrag;
+    struct xfrag *xfrag;
     //void *base = NULL;
     empty_buf_desc_t *producer_desc;
     empty_desc_fifo_t *fifo = &sc->rx_queue.outbound_descriptors[tier];
@@ -1431,7 +1430,7 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
     rx_extra_t *pkt_extras;
 
     //xfrag = packet_data_newfrag(&base);
-    xfrag = rx_xfrag_alloc(99);
+    xfrag = xfrag_alloc();
     if(xfrag == NULL) {
         DESCSOCK_LOG("xfrag returned null\n");
         return ERR_BUF;
@@ -1445,11 +1444,10 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
     }
     pkt_extras = (rx_extra_t *)&extra_fifo->extra[produce_buf_idx];
 
-    producer_desc->addr = (UINT64)xfrag->base;
+    producer_desc->addr = (UINT64)xfrag->data;
     producer_desc->len = BUF_SIZE;
     //ex->frag = xfrag;
-    pkt_extras->rx_xfrag = xfrag;
-
+    pkt_extras->xf = xfrag;
     pkt_extras->phys = producer_desc->addr;
 
     return ERR_OK;
@@ -1539,7 +1537,7 @@ flush_bytes_to_socket(struct descsock_softc * sc, UINT32 tx, int qos)
 
     /* Make the socket I/O call */
     advance = descsock_writev_file(fd, iov, (1 + ring_wrap));
-    printf("Writen bytes %d\n", advance);
+    //printf("Writen bytes %d\n", advance);
 
     if (advance > 0) {
         /* We wrote data out to the socket, update consumer idx and return number of bytes writen */
@@ -1614,7 +1612,7 @@ refill_inbound_fifo_from_socket(struct descsock_softc *sc, UINT32 tx, UINT32 qos
 
     /* Make the socket I/O call */
     advance = descsock_readv_file(fd, iov, (1 + ring_wrap));
-    printf("read bytes %d\n", advance);
+    //printf("read bytes %d\n", advance);
     if (advance > 0) {
         /* We read bytes from socket, advance the producer idx */
         *ptr_prod = (prod_idx + advance) & ring_mask;

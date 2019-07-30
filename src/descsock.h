@@ -143,11 +143,8 @@ typedef struct {
 
 
 typedef struct  {
-    // void *frag;
-    // void *xdata;
+    struct xfrag *xf;
     UINT64 phys;
-    rx_xfrag_t *rx_xfrag;
-
 } rx_extra_t;
 
 /* Store extra info about packet data here, for cleaning packets later on Rx */
@@ -160,19 +157,11 @@ typedef struct  {
     UINT16 rx_prod_idx;
 }rx_extra_fifo_t;
 
-
-
-typedef struct {
-    void *base;
-    UINT32 len;
-    UINT64 idx;
-} client_tx_buf_t;
-
 typedef struct {
     laden_buf_desc_t    *desc;
-    client_tx_buf_t      *pkt;
+    client_tx_buf_t     *pkt;
+    tx_xfrag_t          *tx_xfrag;
 } tx_completions_ctx_t;
-
 
 typedef struct {
     char    c[LADEN_DESC_RING_SIZE];
@@ -236,17 +225,16 @@ typedef struct {
 struct descsock_rx {
     laden_desc_fifo_t                           inbound_descriptors[NUM_TIERS];
     empty_desc_fifo_t                           outbound_descriptors[NUM_TIERS];
+
     rx_extra_fifo_t                             pkt_extras[NUM_TIERS];
     FIXEDQ(, laden_buf_desc_t *, RING_SIZE)     complete_pkt[NUM_TIERS];
-    FIXEDQ(, struct client_rx_buf*, RING_SIZE)   ready_bufs;
+    FIXEDQ(, struct packet *, RING_SIZE)  ready_bufs;
     int                                         socket_fd[NUM_TIERS];
 
 };
 
 struct descsock_tx {
-    /* Sockets for sending send descriptors */
     int                                         socket_fd[NUM_TIERS];
-    /* socket facing byte fifos */
     empty_desc_fifo_t                           inbound_descriptors[NUM_TIERS];
     laden_desc_fifo_t                           outbound_descriptors[NUM_TIERS];
 
@@ -308,7 +296,7 @@ err_t descsock_teardown();
  * library client API
  */
 int descsock_send(void *handle, UINT32 len);
-int descsock_recv(struct descsock_softc *sc);
+int descsock_recv( void *buf, UINT32 len, int flag);
 
 client_tx_buf_t* descsock_alloc_tx_xfrag();
 void descsock_free_tx_xfrag(void *handle);

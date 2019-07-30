@@ -42,6 +42,8 @@ typedef unsigned long           SIZE;
 typedef enum { FALSE, TRUE }    BOOL;
 typedef double                  DOUBLE;
 
+typedef unsigned short vlan_t;
+
 /*
  * Basic file I/O
  */
@@ -52,11 +54,6 @@ struct tmm_memory {
     char name[256];
     void *base;
     UINT32 length;
-};
-
-struct xfrag {
-    void *base;
-    UINT32 len;
 };
 
 typedef struct {
@@ -80,4 +77,11 @@ struct client_rx_buf {
     UINT32 len;
     UINT64 idx;
 };
+
+typedef struct {
+    void *base;
+    UINT32 len;
+    UINT64 idx;
+} client_tx_buf_t;
+
 #endif /* _TYPES_H */

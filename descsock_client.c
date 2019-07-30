@@ -51,8 +51,6 @@ init_descosck_lib() {
 int
 descsock_client_open(descsock_client_spec_t * const spec, const int flags)
 {
-
-
     //pthread_t thread_id;
     int ret = 1;
 
@@ -76,9 +74,10 @@ descsock_client_open(descsock_client_spec_t * const spec, const int flags)
     return ret;
 }
 
-descsock_client_tx_buf_t* descsock_client_alloc_buf()
+descsock_client_tx_buf_t *
+descsock_client_alloc_buf()
 {
-    return (descsock_client_tx_buf_t*) descsock_alloc_tx_xfrag();
+    return (descsock_client_tx_buf_t*) descsock_alloc_xfrag();
 }
 
 void descsock_client_free_buf(descsock_client_tx_buf_t *buf)
@@ -93,7 +92,7 @@ descsock_client_poll(int event_mask)
 
     /* Check for received packets */
     bool ret = descsock_poll(NULL, NULL);
-    printf("ret is %d\n", ret);
+    //printf("ret is %d\n", ret);
     if(ret) {
         // got a packet
         return 1;
@@ -114,7 +113,7 @@ descsock_client_send(descsock_client_tx_buf_t *buf, const uint64_t len, const in
 ssize_t
 descsock_client_recv(void * const buf, const uint64_t len, const int flags)
 {
-    return 0;
+    return descsock_recv(buf, DESCSOCK_BUF_SIZE, 0);
 }
 
 int

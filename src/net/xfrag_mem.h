@@ -6,6 +6,12 @@
 
 #define XFRAG_SIZE 2048
 
+struct xfrag {
+    UINT32 magic;
+    void *data;
+    UINT16 len;
+    TAILQ_ENTRY(xfrag) next;
+};
 
 typedef struct {
     UINT64 xfrag_rx_used;
@@ -20,6 +26,7 @@ typedef struct rx_xfrag {
     UINT16  len;
     void    *base;
     bool    locked;
+    UINT64  idx;
 }rx_xfrag_t;
 
 typedef struct tx_xfrag {
@@ -30,20 +37,10 @@ typedef struct tx_xfrag {
     UINT64  idx;
 } tx_xfrag_t;
 
-
-/*
- * Rx xfrag for producer and return
- */
-void rx_xfrag_pool_init(void *poolbase, UINT64 pool_len, int num_of_bufs);
-rx_xfrag_t* rx_xfrag_alloc(int mss);
-void rx_xfrag_free(rx_xfrag_t *xf);
-
-/*
- * Rx xfrag for sending and completions
-*/
-void tx_xfrag_pool_init(void *poolbase, UINT64 pool_len, int num_of_bufs);
-tx_xfrag_t* tx_xfrag_alloc(int mss);
-void tx_xfrag_free(tx_xfrag_t *xf);
+void xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs);
+void xfrag_pool_free(void);
+struct xfrag * xfrag_alloc(void);
+void xfrag_free(struct xfrag *xf);
 
 
 #endif

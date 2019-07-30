@@ -104,6 +104,12 @@ typedef struct {
     uint64_t idx;
 } descsock_client_tx_buf_t;
 
+struct client_buf {
+    uint32_t len;
+    uint64_t idx;
+    void *base;
+};
+
 /* XXX: put a static asser here to make sure sizeof(descsock_client_tx_buf_t ) == 20 */
 
 typedef struct {
