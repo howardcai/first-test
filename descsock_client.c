@@ -82,7 +82,7 @@ descsock_client_alloc_buf()
 
 void descsock_client_free_buf(descsock_client_tx_buf_t *buf)
 {
-    descsock_free_tx_xfrag((void* )buf);
+    descsock_free_xfrag((void* )buf);
 }
 
 int

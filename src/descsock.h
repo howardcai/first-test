@@ -221,6 +221,12 @@ typedef struct {
     int tx_fd[NUM_TIERS];
 } descsock_sep_t;
 
+struct client_buf_ctx {
+    struct xfrag        *xf;
+    client_tx_buf_t     client_buf;
+    UINT64              idx;
+    TAILQ_ENTRY(client_buf_ctx) next;
+};
 
 struct descsock_rx {
     laden_desc_fifo_t                           inbound_descriptors[NUM_TIERS];
@@ -264,6 +270,9 @@ struct descsock_softc {
     struct descsock_rx          rx_queue;
     struct descsock_tx          tx_queue;
 
+    TAILQ_HEAD(, client_buf_ctx) client_xfrag_ctx;
+
+
     BOOL                                        descsock_l2_override;
 
     dma_region_t               dma_region;
@@ -298,8 +307,8 @@ err_t descsock_teardown();
 int descsock_send(void *handle, UINT32 len);
 int descsock_recv( void *buf, UINT32 len, int flag);
 
-client_tx_buf_t* descsock_alloc_tx_xfrag();
-void descsock_free_tx_xfrag(void *handle);
+client_tx_buf_t* descsock_alloc_xfrag();
+void descsock_free_xfrag(void *handle);
 
 
 

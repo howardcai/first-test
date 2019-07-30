@@ -153,6 +153,8 @@ int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id
     FIXEDQ_INIT(sc->tx_queue.client_buf_stack);
     FIXEDQ_INIT(sc->rx_queue.ready_bufs);
 
+    TAILQ_INIT(&sc->client_xfrag_ctx);
+
     /* build producer descriptors */
     DESCSOCK_LOG("Producing xdatas\n");
     i = rx_send_advance_producer(sc, tier, RING_SIZE - 1);
@@ -256,7 +258,8 @@ client_tx_buf_t *
 descsock_alloc_xfrag()
 {
     struct xfrag  *xf;
-    client_tx_buf_t *client_buf;
+    struct client_buf_ctx *ctx;
+
    // struct tx_context *ctx;
 
     xf = xfrag_alloc();
@@ -265,21 +268,24 @@ descsock_alloc_xfrag()
         goto err_out;
     }
 
-    client_buf = FIXEDQ_ALLOC(sc->tx_queue.client_buf_stack);
-    if(client_buf == NULL) {
-        printf("no more client bufs\n");
-        goto err_out;
-    }
+    ctx = malloc(sizeof(struct client_buf_ctx));
+    ctx->xf = xf;
 
-    tx_xfrag->idx = buf_idx;
-    tx_xfrag->locked = TRUE;
+    ctx->client_buf.base = xf->data;
+    ctx->client_buf.len = xf->len;
+    ctx->client_buf.idx = buf_idx;
 
-    client_buf->idx = buf_idx;
-    client_buf->base = tx_xfrag->base;
+    ctx->idx = buf_idx;
+
+
+    /* Allocate a buf_ctx to keep track of this buf for later freeing */
+    TAILQ_INSERT_TAIL(&sc->client_xfrag_ctx, ctx, next);
+
+
 
     buf_idx++;
 
-    return client_buf;
+    return &ctx->client_buf;
 
 err_out:
     return NULL;
@@ -298,22 +304,26 @@ int descsock_send(void *handle, UINT32 len)
 
     return (ret == ERR_OK)? 1: -1;
 }
-void descsock_free_tx_xfrag(void *handle)
+void descsock_free_xfrag(void *handle)
 {
+    struct client_buf_ctx *xfrag_ctx;
     client_tx_buf_t *buf = (client_tx_buf_t *)handle;
-    // XXX: asserts here
-    struct tx_context *ctx;
 
-    SLIST_FOREACH(ctx, &sc->tx_queue.tx_ctx_listhead, next) {
-           if(ctx->idx == buf->idx) {
-               // remove tx_ctx
-                SLIST_REMOVE(&sc->tx_queue.tx_ctx_listhead, ctx, tx_context, next);
-
-                tx_xfrag_free(ctx->tx_xfrag);
-           }
+    if(TAILQ_EMPTY(&sc->client_xfrag_ctx)) {
+        printf("Nothing to free\n");
+        return;
     }
 
+    TAILQ_FOREACH(xfrag_ctx, &sc->client_xfrag_ctx, next) {
+        if(xfrag_ctx->idx == buf->idx) {
 
+            xfrag_free(xfrag_ctx->xf);
+
+            TAILQ_REMOVE(&sc->client_xfrag_ctx, xfrag_ctx, next);
+
+            free(xfrag_ctx);
+        }
+    }
 }
 
 err_t descsock_setup(struct descsock_softc *sc)
