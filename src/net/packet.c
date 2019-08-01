@@ -6,14 +6,18 @@
 #include "../sys/types.h"
 #include "packet.h"
 
+/*
+ * Most of this logic comes from TMM's Packet API
+ */
 
-
-//static TAILQ_HEAD(, packet) pkt_pool_head;
-//static FIXEDQ(, struct packet, PKT_QUEUE_SIZE) pkt_queue;
+/*
+ * Packet mem pool is serviced though a simple linkedlist stack
+ */
 static SLIST_HEAD(, packet)     pkt_stack_head;
 void *pkts_base_addr;
 
 
+/* Allocate a block of memory and build packet objects, and add to pkt stack */
 void packet_init_pool(int num_of_pkts)
 {
     int i;
@@ -34,9 +38,9 @@ void packet_init_pool(int num_of_pkts)
 
         offset += sizeof(struct packet);
     }
-
 }
 
+/* Free the previously allocated blob of meme */
 void packet_pool_free()
 {
     if(pkts_base_addr != NULL) {
@@ -56,8 +60,6 @@ struct packet* packet_alloc()
         DESCSOCK_LOG("No packets in pool\n");
         exit(EXIT_FAILURE);
     }
-    //printf("allocated packet %p\n", pkt);
-
     SLIST_REMOVE_HEAD(&pkt_stack_head, next);
 
     return pkt;
@@ -87,9 +89,3 @@ void packet_clear_flag(struct packet *pkt, UINT32 flag)
 {
 
 }
-
-
-// void packet_data_dma(struct packet *pkt, struct xfrag_item *xf, UINT32 len)
-// {
-//     printf("xxx: check valid dma\n");
-// }

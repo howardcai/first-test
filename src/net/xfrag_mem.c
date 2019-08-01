@@ -9,11 +9,19 @@
 #include "../kern/sys.h"
 #include "xfrag_mem.h"
 
+/*
+ * Most of this logic comes from TMM's Xbuf API
+ */
+
+
+/*
+ * Xfrag mem pool is serviced though a doubly linked linkedlist
+ */
 
 static TAILQ_HEAD(, xfrag) xfrag_pool_head;
 static TAILQ_HEAD(, xfrag) xfrag_pool_headtx;
 void *xf_base_addr;
-//static UINT64 offset = 0;
+
 
 xfrag_ussage_stats_t xfrag_stats = {
     .xfrag_rx_used = 0,
@@ -75,6 +83,11 @@ void xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
 
 }
 
+/*
+ * Allocates a xfrag from the queue, if rx == true we need a xfrag for Rx packets
+ * else we need an xfrag for Tx packet
+ * Returns an xfrag object
+ */
 struct xfrag * xfrag_alloc(bool rx)
 {
     struct xfrag *xf;
@@ -89,7 +102,6 @@ struct xfrag * xfrag_alloc(bool rx)
         TAILQ_REMOVE(&xfrag_pool_head, xf, next);
         xf->len = 0;
         xf->idx = -1;
-        //memset(xf->data, 0, BUF_SIZE);
     }
     else {
         xf = TAILQ_FIRST(&xfrag_pool_headtx);
@@ -100,14 +112,13 @@ struct xfrag * xfrag_alloc(bool rx)
         TAILQ_REMOVE(&xfrag_pool_headtx, xf, next);
         xf->len = 0;
         xf->idx = -1;
-        //memset(xf->data, 0, BUF_SIZE);
     }
-
     //printf("Allocated xfrag with base %p %lld\n", xf->data, (UINT64)xf->data);
 
     return xf;
 }
 
+/* Frees an xfrag object, gets put back into the rx or tx quees */
 void xfrag_free(struct xfrag *xf, bool rx)
 {
     printf("freeing xfrag with base %p %lld\n", xf->data, (UINT64)xf->data);
@@ -119,6 +130,7 @@ void xfrag_free(struct xfrag *xf, bool rx)
     }
 }
 
+/* free all the blog of mem needed for the xfrag mem pools */
 void xfrag_pool_free(void)
 {
     if(xf_base_addr != NULL) {

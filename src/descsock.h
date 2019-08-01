@@ -54,29 +54,6 @@
 #define DESCSOCK_FLAG_RUNTIME_DEBUG (4)
 #define DESCSOCK_FLAG_FAKE_PCI      (8)
 
-// #define EPOLLIN 0x001
-// /* Valid opcodes ( "op" parameter ) to issue to epoll_ctl().  */
-// #define EPOLL_CTL_ADD 1	/* Add a file descriptor to the interface.  */
-// #define EPOLL_CTL_DEL 2	/* Remove a file descriptor from the interface.  */
-// #define EPOLL_CTL_MOD 3	/* Change file descriptor epoll_event structure.  */
-
-/* To store bufs when reading and writting to sockets*/
-// struct iovec {
-//     void *iov_base;	/* Pointer to data.  */
-//     UINT64 iov_len;	/* Length of data.  */
-// };
-
-// typedef union epoll_data {
-//   void *ptr;
-//   int fd;
-//   uint32_t u32;
-//   uint64_t u64;
-// } epoll_data_t;
-
-// struct epoll_event {
-//   uint32_t events;	/* Epoll events */
-//   epoll_data_t data;	/* User data variable */
-// };
 
 typedef enum {
     RX_RET    = 1,
@@ -135,8 +112,7 @@ typedef struct {
 #define LADEN_DESC_RING_WRAP(x)     ((x) & LADEN_DESC_RING_MASK)
 
 #define MASTER_SOCKET     "/config/dmaa_doorbell.sock"
-#define MADC_PLATFORM       "Z102"
-#define PADC_PLATFORM       "Z101"
+
 #define DESCSOCK_SET_DID(x) (x & ((1 << 9) -1))
 
 
@@ -187,71 +163,35 @@ typedef struct {
 } descsock_stats_t;
 
 /*
- * XXX: Since TMM runs per thread/cpu core, which means each SEP will get a
- * TMM thread lets put a temp number of max cpus here, we'll need to dynamically
- * obtain this later with hudconf.ncpu
+ * RX queue
  */
-#define DESCSOCK_MAX_CPU        2
-
-#define VIRTIO_DMA_MASTER "dma-master"
-
-// struct tx_context {
-//     SLIST_ENTRY(tx_context)     next;
-//     tx_xfrag_t                  *tx_xfrag;
-//     client_tx_buf_t             *client_buf;
-//     laden_buf_desc_t            *desc;
-//     UINT64                      idx;
-// };
-// struct tx_entry {
-//     SLIST_ENTRY(tx_entry) entry;
-//     tx_xfrag_t *xf;
-//     client_tx_buf_t *buf;
-//     UINT64 idx;
-// };
-
-typedef enum {
-    PADC_MODE,
-    MADC_MODE,
-} descsock_mode_t;
-
-typedef struct {
-    int rx_fd[NUM_TIERS];
-    int tx_fd[NUM_TIERS];
-} descsock_sep_t;
-
-struct client_buf_ctx {
-    struct xfrag        *xf;
-    client_tx_buf_t     client_buf;
-    UINT64              idx;
-    TAILQ_ENTRY(client_buf_ctx) next;
-};
-
-struct rx_pkt {
-    STAILQ_ENTRY(rx_pkt) next;
-    struct packet       *pkt;
-};
-
 struct descsock_rx {
+    /* Unix domain socket file descriptors  for Rx */
+    int                                         socket_fd[NUM_TIERS];
+
+    /* Socket facing byte fifos */
     laden_desc_fifo_t                           inbound_descriptors[NUM_TIERS];
     empty_desc_fifo_t                           outbound_descriptors[NUM_TIERS];
 
+    /* Rx packet queues */
     rx_extra_fifo_t                             pkt_extras[NUM_TIERS];
     FIXEDQ(, laden_buf_desc_t *, RING_SIZE)     complete_pkt[NUM_TIERS];
-    FIXEDQ(, struct packet *, RING_SIZE)        ready_bufs;
-    int                                         socket_fd[NUM_TIERS];
-
-    STAILQ_HEAD(, rx_pkt)                        pkt_queue;
+    FIXEDQ(, struct packet *, RING_SIZE)        rx_pkt_queue;
 };
 
+/*
+ * Tx Queue
+ */
 struct descsock_tx {
+    /* Unix domain socket file descriptors  for Tx */
     int                                         socket_fd[NUM_TIERS];
+
+    /* Socket facing byte fifos */
     empty_desc_fifo_t                           inbound_descriptors[NUM_TIERS];
     laden_desc_fifo_t                           outbound_descriptors[NUM_TIERS];
 
-    FIXEDQ(, client_tx_buf_t, RING_SIZE)        client_buf_stack;
+    /* This queue is for keeping track of sent packet for future reclying upon sent completion */
     FIXEDQ(, tx_completions_ctx_t, RING_SIZE)   completions[NUM_TIERS];
-    SLIST_HEAD(tx_ctx, tx_context)              tx_ctx_listhead;
-
 };
 
 typedef struct {
@@ -274,15 +214,11 @@ struct descsock_softc {
     struct descsock_rx          rx_queue;
     struct descsock_tx          tx_queue;
 
-    TAILQ_HEAD(, client_buf_ctx) client_xfrag_ctx;
-
-
     BOOL                                        descsock_l2_override;
-
     dma_region_t               dma_region;
-    descsock_mode_t            mode;
-
   };
+
+
 
 
 /*
@@ -290,6 +226,7 @@ struct descsock_softc {
  */
 BOOL descsock_probe(f5dev_t dev);
 f5device_t *descsock_attach(f5dev_t dev);
+
 void descsock_detach(f5device_t *devp);
 BOOL descsock_poll(int event_mask);
 
@@ -297,10 +234,6 @@ BOOL descsock_poll(int event_mask);
 /*
  * ifnet interface functions
  */
-// static err_t descsock_ifup(struct ifnet *ifp);
-// static err_t descsock_ifdown(struct ifnet *ifp);
-err_t descsock_ifoutput(struct packet *pkt);
-
 int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id);
 err_t descsock_setup(void);
 err_t descsock_teardown(void);
@@ -311,10 +244,6 @@ err_t descsock_teardown(void);
  */
 int descsock_send(void *handle, UINT32 len);
 int descsock_recv(void *buf, UINT32 len, int flag);
-
-client_tx_buf_t* descsock_alloc_xfrag();
-void descsock_free_xfrag(void *handle);
-
 
 
 /* Forward declaration.  Actual struct only used in if_descsock.c */

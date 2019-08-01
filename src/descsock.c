@@ -6,9 +6,9 @@
  * form or by any means, electronic or mechanical, for any purpose,
  * without express written permission of F5 Networks, Inc. $
  *
- * Descriptor Socket Network Interface Driver framework
+ * Descriptor Socket Network Interface Driver Framework
  *
- * $Id: //depot/tmos/core-ce-platform/tmm/dev/descsock/if_descsock.c#4 $
+ *
  */
 #include <stdint.h>
 #include <stdlib.h>
@@ -29,18 +29,13 @@
 #include "descsock.h"
 
 
-
 /*
  * Internal driver functions
  */
-//static void descsock_periodic_task(struct timer *, void *);
-err_t descsock_config_exchange(char * dmapath);
-int descsock_establish_dmaa_conn(void);
-void descsock_partition_sockets(int socks[], int rx[], int tx[]);
-
-/*
- * TX, RX private helpers
- */
+static err_t descsock_ifoutput(struct packet *pkt);
+static err_t descsock_config_exchange(char * dmapath);
+static int descsock_establish_dmaa_conn(void);
+static void descsock_partition_sockets(int socks[], int rx[], int tx[]);
 
 /*
  * Rx
@@ -48,14 +43,14 @@ void descsock_partition_sockets(int socks[], int rx[], int tx[]);
  * Building Rx slots, Producer descriptors, Reading bytes/descriptors from sockets, Building packets,
  * Passing packets up the TMM stack
  */
-err_t descsock_build_rx_slot(UINT32 tier);
-inline err_t descsock_refill_rx_slots(int tier, int max);
-inline int refill_inbound_fifo_from_socket(UINT32 tx,  UINT32 qos);
-int descsock_count_pkts_from_fifo(laden_desc_fifo_t *fifo, UINT32 avail, UINT32 *pkt_count);
-inline int rx_receive_advance_producer(UINT32 tier);
-inline void rx_receive_advance_consumer(UINT32 tier);
-inline int tx_receive_advance_producer(UINT32 tier);
-inline int tx_receive_adanvace_consumer(UINT32 tier, int max);
+static err_t descsock_build_rx_slot(UINT32 tier);
+static inline err_t descsock_refill_rx_slots(int tier, int max);
+static inline int refill_inbound_fifo_from_socket(UINT32 tx,  UINT32 qos);
+static int descsock_count_pkts_from_fifo(laden_desc_fifo_t *fifo, UINT32 avail, UINT32 *pkt_count);
+static inline int rx_receive_advance_producer(UINT32 tier);
+static inline void rx_receive_advance_consumer(UINT32 tier);
+static inline int tx_receive_advance_producer(UINT32 tier);
+static inline int tx_receive_adanvace_consumer(UINT32 tier, int max);
 
 /*
  * Tx
@@ -63,22 +58,20 @@ inline int tx_receive_adanvace_consumer(UINT32 tier, int max);
  * Writing bytes/descriptors to sockets, Building send descriptors from egress packets
  * Saving packet references for cleaning up when completions arrive
  */
-inline int flush_bytes_to_socket(UINT32 tx, int qos);
-inline err_t tx_send_advance_producer(UINT32 tier);
-inline int tx_send_advance_consumer(UINT32 tier);
-err_t descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier);
-err_t descsock_tx_multi_desc_pkt(struct packet *pkt, UINT32 tier);
-inline int rx_send_advance_producer(UINT16 tier, int max);
-inline int rx_send_advance_consumer(int tier);
-inline void clean_tx_completions(UINT16 tier);
+static inline int flush_bytes_to_socket(UINT32 tx, int qos);
+static inline err_t tx_send_advance_producer(UINT32 tier);
+static inline int tx_send_advance_consumer(UINT32 tier);
+static err_t descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier);
+//err_t descsock_tx_multi_desc_pkt(struct packet *pkt, UINT32 tier);
+static inline int rx_send_advance_producer(UINT16 tier, int max);
+static inline int rx_send_advance_consumer(int tier);
+static inline void clean_tx_completions(UINT16 tier);
 
 /*
  * Initializing, debug, helper functions
  */
-err_t descsock_init_conn();
-
+static err_t descsock_init_conn();
 void descsock_print_buf(void * buf, int buf_len);
-void descsock_print_pkt(struct packet *pkt);
 void descsock_close_fds();
 UINT16 descsock_get_ethertype(struct packet *pkt);
 err_t descsock_get_vlantag(struct packet *pkt, UINT16 *vlan);
@@ -95,29 +88,18 @@ BOOL empty_desc_fifo_full(empty_desc_fifo_t *fifo);
 BOOL empty_desc_fifo_empty(empty_desc_fifo_t *fifo);
 int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
 
-err_t descsock_setup();
-err_t descsock_teardown();
+
 
 struct descsock_softc *sc;
-static UINT64 buf_idx = 0;
 
-int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
+int
+descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
 {
     int i;
     int ret = 1;
     err_t err = ERR_OK;
     int tier = 0;
 
-    // if(argc <= 1) {
-    //     sys_usage();
-    //     return -1;
-    // }
-
-    // /* retrieve the passed in args */
-    // err = sys_hudconf_init(argc, argv);
-    // if(err != ERR_OK) {
-    //     return -1;
-    // }
     hudconf.hugepages_path = strdup(dma_shmem_path);
     hudconf.mastersocket = strdup(mastersocket);
     hudconf.svc_ids = svc_id;
@@ -142,20 +124,15 @@ int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id
         exit(EXIT_FAILURE);
     }
 
-    /* Init queues */
+    /* Init queues for all tiers
+     * Only using tier 0 for for now
+     */
     for(i = 0; i < NUM_TIERS; i++) {
         FIXEDQ_INIT(sc->tx_queue.completions[i]);
         FIXEDQ_INIT(sc->rx_queue.complete_pkt[i]);
     }
 
-
-    SLIST_INIT(&sc->tx_queue.tx_ctx_listhead);
-    FIXEDQ_INIT(sc->tx_queue.client_buf_stack);
-    FIXEDQ_INIT(sc->rx_queue.ready_bufs);
-
-    TAILQ_INIT(&sc->client_xfrag_ctx);
-
-    STAILQ_INIT(&sc->rx_queue.pkt_queue);
+    FIXEDQ_INIT(sc->rx_queue.rx_pkt_queue);
 
     /* build producer descriptors */
     DESCSOCK_LOG("Producing xdatas\n");
@@ -252,52 +229,6 @@ out:
     return err;
 }
 
-/*
- * Allocate a tx xfrag from tx_xfrag pool
- * Save a reference to that tx xfrag
- */
-client_tx_buf_t *
-descsock_alloc_xfrag()
-{
-    struct xfrag  *xf;
-    struct client_buf_ctx *ctx;
-
-   // struct tx_context *ctx;
-
-    xf = xfrag_alloc(false);
-    if(xf == NULL) {
-        printf("frag pool is empty\n");
-        goto err_out;
-    }
-
-    xf->idx = buf_idx;
-
-    ctx = malloc(sizeof(struct client_buf_ctx));
-    if(ctx == NULL) {
-        printf("Failed to alloc ctx\n");
-        goto err_out;
-    }
-
-    ctx->xf = xf;
-
-    ctx->client_buf.base = xf->data;
-    ctx->client_buf.len = xf->len;
-    ctx->client_buf.idx = buf_idx;
-
-    ctx->idx = buf_idx;
-
-
-    /* Allocate a buf_ctx to keep track of this buf for later freeing */
-    TAILQ_INSERT_TAIL(&sc->client_xfrag_ctx, ctx, next);
-
-    buf_idx++;
-
-    return &ctx->client_buf;
-
-err_out:
-    return NULL;
-}
-
 /* Send a buf owned by descsock client */
 int descsock_send(void *buf, UINT32 len)
 {
@@ -331,43 +262,15 @@ int descsock_send(void *buf, UINT32 len)
 
     return (ret == ERR_OK)? 1: -1;
 }
-void descsock_free_xfrag(void *handle)
-{
-    struct client_buf_ctx *xfrag_ctx;
-    client_tx_buf_t *buf = (client_tx_buf_t *)handle;
-    bool rx = false;
-
-    if(TAILQ_EMPTY(&sc->client_xfrag_ctx)) {
-        DESCSOCK_LOG("Nothing to free\n");
-        return;
-    }
-
-    TAILQ_FOREACH(xfrag_ctx, &sc->client_xfrag_ctx, next) {
-        if(xfrag_ctx->idx == buf->idx) {
-
-            xfrag_free(xfrag_ctx->xf, rx);
-
-            TAILQ_REMOVE(&sc->client_xfrag_ctx, xfrag_ctx, next);
-
-            free(xfrag_ctx);
-        }
-    }
-}
-
-err_t descsock_setup()
-{
-    return ERR_OK;
-}
 
 int
 descsock_recv(void *buf, UINT32 len, int flag)
 {
     struct packet *pkt;
     bool rx = true;
-   // struct rx_pkt *rxpkt;
 
-    while(!FIXEDQ_EMPTY(sc->rx_queue.ready_bufs)) {
-        pkt = FIXEDQ_HEAD(sc->rx_queue.ready_bufs);
+    while(!FIXEDQ_EMPTY(sc->rx_queue.rx_pkt_queue)) {
+        pkt = FIXEDQ_HEAD(sc->rx_queue.rx_pkt_queue);
 
 
         printf("received pkt %p with buf %p %lld len %d\n",
@@ -378,28 +281,8 @@ descsock_recv(void *buf, UINT32 len, int flag)
 
         packet_free(pkt);
 
-        FIXEDQ_REMOVE(sc->rx_queue.ready_bufs);
+        FIXEDQ_REMOVE(sc->rx_queue.rx_pkt_queue);
     }
-
-    // while(!STAILQ_EMPTY(&sc->rx_queue.pkt_queue)) {
-    //     rxpkt = STAILQ_FIRST(&sc->rx_queue.pkt_queue);
-    //     pkt = rxpkt->pkt;
-
-    //     printf("received pkt %p %lld len %d\n",
-    //          pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
-
-    //     memcpy(buf, pkt->xf_first->data, pkt->len);
-
-
-    //     STAILQ_REMOVE_HEAD(&sc->rx_queue.pkt_queue, next);
-
-    //     // xfrag_free(pkt->xf_first);
-
-    //     // packet_free(pkt);
-
-    //     // free(rxpkt);
-    // }
-
     return 1;
 }
 
@@ -414,7 +297,6 @@ err_t descsock_teardown()
      * Free all allocated memory in queues
      */
 
-
     return ERR_OK;
 }
 
@@ -425,10 +307,6 @@ BOOL descsock_poll(int mask) {
     int tier, avail, flushed_descriptors;
     struct packet *pkt;
     struct xfrag *xf;
-
-    //struct ifnet *ifp = (struct ifnet *)devp;
-    //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
-    //struct descsock_softc *sc = NULL;
     laden_buf_desc_t *desc;
     laden_desc_fifo_t *tx_out_fifo;
 
@@ -522,12 +400,10 @@ BOOL descsock_poll(int mask) {
             }
 
             /* XXX: Remove later */
-           // descsock_print_pkt(pkt);
-            //ifinput(ifp, pkt);
-
+           // descsock_print_buf(pkt->xf_first->data, pkt->len);
 
             /* add pkt to rx ready to consume queueu */
-            if(FIXEDQ_FULL(sc->rx_queue.ready_bufs)) {
+            if(FIXEDQ_FULL(sc->rx_queue.rx_pkt_queue)) {
                 printf("Rx queue is full dropping rx packet\n");
                 sc->stats.pkt_drop++;
                 goto out;
@@ -537,16 +413,10 @@ BOOL descsock_poll(int mask) {
                  pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
 
 
-            FIXEDQ_INSERT(sc->rx_queue.ready_bufs, pkt);
-
-
-           // FIXEDQ_INSERT(sc->rx_queue.ready_bufs, pkt);
-            // struct rx_pkt *rxpkt = malloc(sizeof(struct rx_pkt));
-            // rxpkt->pkt = pkt;
-
-            // STAILQ_INSERT_TAIL(&sc->rx_queue.pkt_queue, rxpkt, next);
-
-
+            /*
+             * Insert receved packets into queue
+             */
+            FIXEDQ_INSERT(sc->rx_queue.rx_pkt_queue, pkt);
 
             work++;
             sc->stats.pkt_rx++;
@@ -565,6 +435,7 @@ out:
 
     return (work > 0)? TRUE: FALSE;
 }
+
 /*
  * TX
  */
@@ -615,15 +486,6 @@ descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
     laden_buf_desc_t *send_desc = (laden_buf_desc_t *)&tx_out_fifo->c[tx_out_fifo->prod_idx];
 
     /* Get buf data from packet */
-    //xdata = xfrag_getptrlen(packet_data_firstfrag(pkt), &xdata_len);
-
-    /* tmm-padc or tmm-madc */
-    // if(sc->mode == MADC_MODE) {
-    //     send_desc->addr = (UINT64)xdata;
-    // }
-    // else if(sc->mode == PADC_MODE) {
-    //     //send_desc->addr = vtophys(xdata);
-    // }
     send_desc->addr = (UINT64) pkt->xf_first->data;
     send_desc->len = pkt->len + ETHER_CRC_LEN;
     send_desc->type = TX_BUF;
@@ -664,446 +526,12 @@ descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
     /* Send packets here */
     tx_send_advance_consumer(0);
 
-
-
-
     return ERR_OK;
 }
-/*
- * device configuration
- */
-// GLOBALSET device_conf_t descsock_dev_conf = {
-//     .name            = "descsock",
-//     .probe           = descsock_probe,
-//     .attach          = descsock_attach,
-//     .attach_on_probe = TRUE,
-// };
-// DEVICE_DECLARE(pseudo, descsock_dev_conf);
-
-// /*
-//  * Used for TMM TCL script bring up
-//  */
-// static RTTHREAD struct descsock_config {
-//     enum {
-//         SETUP_NONE = 0,
-//         SETUP_BY_BASE_FD,
-//         SETUP_BY_BASE_PATH,
-//         SETUP_BY_MASTER_FD,
-//         SETUP_BY_MASTER_PATH,
-//         SETUP_PARSE_FAILED = -1,
-//     } setup_mode;
-
-//     int         base_fd;
-//     const char *base_path;
-
-//     UINT32      flags;
-//     int         n_qos;
-
-//     const char *force_ifname;
-//     const char *ifname_prefix;
-//     UINT32      mtu;
-//     UINT8       bus, slot, func;
-
-// } descsock_config = {
-//     .n_qos = 2,
-//     .flags = DESCSOCK_FLAG_VIRT_ADDR,
-//     .ifname_prefix = "descsock",
-//     .mtu = DESCSOCK_MTU
-// };
-
-/*
- * Used for parsing descsock arguments from cli run command
- * --descsock="virt,base_path=/foo/bar/baz,fakepci=ff:1f.0"
- */
-// static BOOL
-// descsock_parse_config_clause(char *clause)
-// {
-//     DESCSOCK_LOG("descsock parse %s", clause);
-//     char *key = clause;
-//     char *val = NULL;
-//     char *endptr = NULL;
-
-//     if (clause == NULL ) {
-//         return FALSE;
-//     }
-
-//     /* Check if there is an = char in the clause string */
-//     val = strchr(clause, '=');
-
-//     /* Allow for clauses with just a key rather than key-value pairs.*/
-//     if (val == NULL) {
-//         if (!strcmp(key, "virt")) {
-//             descsock_config.flags |= DESCSOCK_FLAG_VIRT_ADDR;
-//             descsock_config.flags &= ~DESCSOCK_FLAG_PHYS_ADDR;
-//             return TRUE;
-//         } else if (!strcmp(key, "phys")) {
-//             descsock_config.flags |= DESCSOCK_FLAG_PHYS_ADDR;
-//             descsock_config.flags &= ~DESCSOCK_FLAG_VIRT_ADDR;
-//             return TRUE;
-//         } else if (!strcmp(key, "debug")) {
-//             descsock_config.flags |= DESCSOCK_FLAG_RUNTIME_DEBUG;
-//             return TRUE;
-//         } else {
-//             return FALSE;
-//         }
-//     }
-
-//     /*
-//      * Catch clauses a zero-length string on either side of an '='.
-//      */
-//     if ((val == clause) || (val[1] == '\0')) {
-//         return FALSE;
-//     }
-
-//     /* Replace the '=' with '\0' and advance the pointer by one. */
-//     *(val++) = '\0';
-
-//     /* XXX: refactor nested ifs */
-//     if (!strcmp(key, "base_fd")) {
-//         descsock_config.base_fd = strtol(val, &endptr, 0);
-//         if ((descsock_config.base_fd <= 2) || (endptr == val) ||
-//                 (endptr == NULL) || (*endptr != '\0')) {
-//             return FALSE;
-//         }
-//         else {
-//             descsock_config.setup_mode = SETUP_BY_BASE_FD;
-//             return TRUE;
-//         }
-//     }
-//     else if (!strcmp(key, "base_path")) {
-//         descsock_config.base_path = umem_strdup(val, M_DEVBUF, 0);
-//         if (descsock_config.base_path == NULL) {
-//             return FALSE;
-//         }
-//         else {
-//             descsock_config.setup_mode = SETUP_BY_BASE_PATH;
-//             return TRUE;
-//         }
-//     }
-//     else if (!strcmp(key, "master_fd")) {
-//         descsock_config.base_fd = strtol(val, &endptr, 0);
-//         if ((descsock_config.base_fd <= 2) || (endptr == val) ||
-//                 (endptr == NULL) || (*endptr != '\0')) {
-//             return FALSE;
-//         }
-//         else {
-//             descsock_config.setup_mode = SETUP_BY_MASTER_FD;
-//             return TRUE;
-//         }
-//     }
-//     else if (!strcmp(key, "master_path")) {
-//         descsock_config.base_path = umem_strdup(val, M_DEVBUF, 0);
-//         if (descsock_config.base_path == NULL) {
-//             return FALSE;
-//         }
-//         else {
-//             descsock_config.setup_mode = SETUP_BY_MASTER_PATH;
-//             return TRUE;
-//         }
-//     }
-//     else if (!strcmp(key, "n_qos")) {
-//         descsock_config.n_qos = strtol(val, &endptr, 0);
-//         if ((descsock_config.n_qos < 1) ||
-//                 (descsock_config.n_qos > DESCSOCK_MAX_QOS_TIERS) ||
-//                 (endptr == val) || (endptr == NULL) || (*endptr == '\0')) {
-//             return FALSE;
-//         }
-//         else {
-//             return TRUE;
-//         }
-//     }
-//     else if (!strcmp(key, "mtu")) {
-//         descsock_config.mtu = strtol(val, &endptr, 0);
-//         if ((descsock_config.mtu < ETHERMIN) ||
-//                 (descsock_config.mtu > ETHER_MAX_LEN_JUMBO) ||
-//                 (endptr == val) || (endptr == NULL) || (*endptr == '\0')) {
-//             return FALSE;
-//         }
-//         else {
-//             return TRUE;
-//         }
-//     }
-//     else if (!strcmp(key, "ifname_prefix")) {
-//         descsock_config.ifname_prefix = umem_strdup(val, M_DEVBUF, 0);
-//         if (descsock_config.ifname_prefix == NULL) {
-//             return FALSE;
-//         }
-//         else {
-//             return TRUE;
-//         }
-//     }
-//     else if (!strcmp(key, "ifname")) {
-//         descsock_config.force_ifname = umem_strdup(val, M_DEVBUF, 0);
-//         if (descsock_config.force_ifname == NULL) {
-//             return FALSE;
-//         }
-//         else {
-//             return TRUE;
-//         }
-//     }
-//     else if (!strcmp(key, "fakepci")) {
-//         descsock_config.bus = strtol(val, &endptr, 16);
-//         if (*endptr != ':') {
-//             return FALSE;
-//         }
-//         descsock_config.slot = strtol(endptr + 1, &endptr, 16);
-//         if (*endptr != '.') {
-//             return FALSE;
-//         }
-//         descsock_config.func = strtol(endptr + 1, &endptr, 16);
-//         if (*endptr || (descsock_config.slot > 0x1F) || (descsock_config.func > 0x7)) {
-//             return FALSE;
-//         }
-//         descsock_config.flags |= DESCSOCK_FLAG_FAKE_PCI;
-//         return TRUE;
-//     }
-
-//     return FALSE;
-// }
-
-/*
- * Used for parsing descsock arguments from cli run command
- * --descsock="virt,base_path=/foo/bar/baz,fakepci=ff:1f.0"
- */
-// static BOOL
-// descsock_parse_config(void)
-// {
-//     DESCSOCK_DEBUGF("descsock_parse_config");
-//     char *cfgtmp;
-//     char *save = NULL;
-//     char *trav;
-
-//     if ((descsock_config.setup_mode != SETUP_NONE) ||
-//             (hudconf.descsock_cfg_string == NULL)) {
-//         goto out;
-//     }
-
-//     /* Get a pointer to the "virt,base_path=/foo/bar/baz,fakepci=ff:1f.0" for parsing */
-//     cfgtmp = umem_strdup(hudconf.descsock_cfg_string, M_DEVBUF, 0);
-
-//     /* Go through the string parsing for values to configure pci device */
-//     for (trav = strtok_r(cfgtmp, ",", &save); trav != NULL;
-//         trav = strtok_r(NULL, ",", &save)) {
-
-//         if (!descsock_parse_config_clause(trav)) {
-//             DESCSOCK_LOG("Invalid descsock config clause \"%s\".\n", trav);
-//             descsock_config.setup_mode = SETUP_PARSE_FAILED;
-
-//             break;
-//         }
-//     }
-//     ufree(cfgtmp);
-
-// out:
-//     return (descsock_config.setup_mode != SETUP_NONE);
-// }
-
-/*
- * The device probe routine runs BEFORE anything from tmm_init.tcl or
- * --command <tcl cmd> is executed so we can't count on TCL to tell useful
- * whether or not the pseudo-device is configured so we must either return
- * true here unconditionally or use a command line flag like the shmx driver
- * does.
- */
-// BOOL
-// descsock_probe(f5dev_t dev)
-// {
-//     /*
-//      * XXX: --descsock="virt,base_path=/foo/bar/baz,fakepci=ff:1f.0"
-//      * parse pic card info here
-//      * hardcode bus,slot func values for now
-//      */
-
-//     return descsock_parse_config();
-// }
-
-/* Bring up the driver */
-// static err_t
-// descsock_ifup(struct ifnet *ifp)
-// {
-//     /*
-//      * Enable the interface
-//      */
-//     DESCSOCK_LOG("Setting interface state to up.");
-//     ifp->ifflags |= IFF_UP;
-
-//     ifp->if_link_state = LINK_STATE_UP;
-
-//     ifmedia_link_update(ifp, IFM_ETHER | IFM_10000_TX | IFM_FDX);
-
-//     return ERR_OK;
-// }
-
-/*
- * Attach to TMM
- */
-// static f5device_t *
-// descsock_attach(f5dev_t dev)
-// {
-//     int i;
-//     struct descsock_softc *sc;
-//     struct ifnet *ifp;
-//     err_t err;
-//     int tier;
-
-//     if (descsock_config.setup_mode == SETUP_PARSE_FAILED) {
-//         DESCSOCK_LOG("Cannot attach descsock device due to invalid config string.\n");
-//         return NULL;
-//     }
-
-//     sc = (struct descsock_softc *)umalloc(sizeof(struct descsock_softc), M_DEVBUF, UM_ZERO);
-
-//     if (dev.type ==  F5DEV_PSEUDO) {
-//         DESCSOCK_LOG("Attempting to attach as pseudo device name = \"%s\"\n",
-//                 dev.pseudo.name);
-//     } else {
-//         DESCSOCK_LOG("Attempting to attach as PCI device = %02x:%02x.%x\n",
-//                 dev.pci.bus, dev.pci.slot, dev.pci.func);
-//     }
-
-//     if (sc == NULL) {
-//         DESCSOCK_LOG("Cannot allocate descsock driver structure for sc %d\n", hudthread.tmid);
-//         return NULL;
-//     }
-
-//     /* connect TMM ifnet to this driver */
-//     ifp = &sc->ifnet;
-//     ifp->dev.dv_name = descsock_dev_conf.name;
-//     ifp->dev.dv_unit = hudthread.tmid;
-//     ifp->dev.dv_class = DV_NET;
-//     ifp->dev.poll = descsock_poll;
-//     ifp->dev.detach = descsock_detach;
-//     ifp->dev.dv_desc = "Descriptor Socket Virtual NIC";
-//     /* device_set_period(&ifp->dev, DEVICE_MAX_PERIOD); */
-//     device_set_period(&ifp->dev, DESCSOCK_POLL_USEC);
-//     device_notify_sleep(&ifp->dev);
-
-//     ifp->if_mtu = descsock_config.mtu;
-//     ifp->if_baudrate = DESCSOCK_NOMINAL_BITRATE;
-//     ifp->ifup = descsock_ifup;
-
-//     ifp->ifdown = descsock_ifdown;
-//     ifp->ifoutput = descsock_ifoutput;
-
-//     if (descsock_config.flags & DESCSOCK_FLAG_FAKE_PCI) {
-//         ifp->card_info.pci.bus = descsock_config.bus;
-//         ifp->card_info.pci.slot = descsock_config.slot;
-//         ifp->card_info.pci.func = descsock_config.func;
-//     }
-
-//     /*
-//      * XXX:
-//      * As support is added, enable IFF_RXCSUM, IFF_TXL4CSUM, LRO and TSO, etc.
-//      */
-//     ifnet_init_flag(ifp, IFF_VIRTUAL);
-//     /* ifp->ifflags = 0; */
-
-//     sc->n_qos = descsock_config.n_qos;
-//     sc->sep = hudthread.tmid;
-
-//     /*
-//      * Check for L2 override behavior
-//      */
-//     char *l2_override = descsock_getenv("TMM_DESCSOCK_L2_OVERRIDE");
-//     if(l2_override != NULL) {
-//         DESCSOCK_LOG("L2_OVERRIDE IS SET\n");
-//         sc->descsock_l2_override = TRUE;
-//     }
-
-//     /* Check for madc or padc */
-//     if(strcmp(MADC_PLATFORM, hudconf.platform) == 0) {
-//         DESCSOCK_LOG("\nAttach as MADC\n");
-//         err = descsock_init_conn(sc);
-//         sc->mode = MADC_MODE;
-
-//         if(err != ERR_OK) {
-//             DESCSOCK_LOG("Failed to init descsock tmm-madc");
-//             goto fail_early;
-//         }
-//     }
-//     else if(strcmp(PADC_PLATFORM, hudconf.platform) == 0) {
-//         DESCSOCK_LOG("\nAttach as PADC\n");
-//         err = descsock_init_tmmpadc(sc);
-//         sc->mode = PADC_MODE;
-
-//         if(err != ERR_OK) {
-//              DESCSOCK_LOG("Failed to init descsock tmm-padc");
-//             goto fail_early;
-//         }
-//     }
-//     else {
-//         goto fail_early;
-//     }
-
-
-//     DESCSOCK_LOG("Attach as platform %s\n", hudconf.platform);
-//     if (descsock_config.force_ifname != NULL) {
-//         snprintf(ifp->ifname, F5_IFNAMSIZ, "%s", descsock_config.force_ifname);
-//     }
-//     else {
-//         snprintf(ifp->ifname, F5_IFNAMSIZ, "%s%d", descsock_config.ifname_prefix, sc->sep);
-//     }
-
-//     /* Register with tmm NIC driver framework. */
-//     DESCSOCK_LOG("Registered with tmm framework\n");
-//     ifnet_register(ifp);
-
-//     /* We effectively have no phy to control so make something up and leave it */
-//     ifmedia_init(ifp, &sc->ifmedia, IFM_IMASK, NULL, NULL);
-//     ifmedia_add(&sc->ifmedia, IFM_ETHER | IFM_10000_TX | IFM_FDX, 0, NULL);
-//     ifmedia_default(&sc->ifmedia, IFM_ETHER | IFM_10000_TX | IFM_FDX);
-
-//     /*Update our interface stats a couple times a second. */
-//     timer_add_periodic(&sc->stats_timer, descsock_periodic_task, sc, HZ / 10);
-
-//     /* Init queues */
-//     for(i = 0; i < NUM_TIERS; i++) {
-//         FIXEDQ_INIT(sc->tx_queue.completions[i]);
-//         FIXEDQ_INIT(sc->rx_queue.complete_pkt[i]);
-//     }
-
-//     /* XXX: from now we use tier 0 for everything */
-//     tier = 0;
-
-//     /*
-//      * Produce RING_SIZE of empty buf producer descriptors and write them out to the DMA Agent
-//      */
-
-//     /* produce descriptors */
-//     DESCSOCK_LOG("Producing xdatas\n");
-//     i = rx_send_advance_producer(sc, tier, RING_SIZE - 1);
-//     DESCSOCK_LOG("rx_send_advance producer %d\n", i);
-//     if(i <= 0) {
-//         DESCSOCK_LOG("Error pruducing xdatas\n");
-//     }
-
-//     /* Consume */
-//     DESCSOCK_LOG("consuming xdatas\n");
-//     i = rx_send_advance_consumer(sc, tier);
-//     DESCSOCK_LOG("rx_send_advance consumer %d\n", i);
-//     if(i <= 0) {
-//         DESCSOCK_LOG("Error sending producer descriptors on init");
-//     }
-
-//     DESCSOCK_LOG("descsock: SEP%d attached as %s\n", sc->sep, ifp->ifname);
-
-//     return &sc->ifnet.dev;
-
-// fail_early:
-//     for (i = 0; i < array_size(sc->sock_fd); i++) {
-//         if (sc->sock_fd[i] >= 0) {
-//             close(sc->sock_fd[i]);
-//         }
-//     }
-
-//     DESCSOCK_LOG("Failed to attach descsock driver");
-//     ufree(sc);
-//     return NULL;
-// }
 
 
 /* Send our config to the DMA Agent */
-err_t
+static err_t
 descsock_config_exchange(char * dmapath)
 {
     err_t err = ERR_OK;
@@ -1170,60 +598,18 @@ out:
     return err;
 }
 
-void
+static void
 descsock_partition_sockets(int socks[], int rx[], int tx[]) {
     memcpy(rx, socks, NUM_TIERS * sizeof(int));
     memcpy(tx, socks + NUM_TIERS, NUM_TIERS * sizeof(int));
 }
 
 /* Connect to master socket at doorbell.sock */
-int
+static int
 descsock_establish_dmaa_conn(void)
 {
     return descsock_get_unixsocket(MASTER_SOCKET);
 }
-
-/*
- * Bring down the driver
- */
-// static err_t
-// descsock_ifdown(struct ifnet *ifp)
-// {
-//     DESCSOCK_LOG("Setting interface state to down.");
-//     ifp->ifflags &= ~IFF_UP;
-//     ifp->if_link_state = LINK_STATE_DOWN;
-//     ifmedia_link_update(ifp, 0);
-
-//     return ERR_OK;
-// }
-
-// void
-// descsock_periodic_task(struct timer *timer, void *param)
-// {
-//     struct descsock_softc *sc = (struct descsock_softc *)param;
-//     sc->timer_ticks++;
-// }
-
-/*
- * Remove device from TMM
- * Print out stats
- */
-// static void
-// descsock_detach(f5device_t *devp)
-// {
-//     struct ifnet *ifp = (struct ifnet *)devp;
-//     struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
-
-//     DESCSOCK_LOG("detaching descsock device\n");
-//     DESCSOCK_LOG("Tx packets\t\t%d", sc->stats.pkt_tx);
-//     DESCSOCK_LOG("Rx packets\t\t%d", sc->stats.pkt_rx);
-//     DESCSOCK_LOG("Packet count\t\t%d", (sc->stats.pkt_tx + sc->stats.pkt_rx));
-//     DESCSOCK_LOG("Packet drop\t\t%d", sc->stats.pkt_drop);
-
-//     descsock_close_fds(sc);
-
-//     ifnet_unregister(ifp);
-// }
 
 /* Close master socket and all of unix sockets sent by the DMA Agent */
 void
@@ -1251,7 +637,7 @@ descsock_close_fds()
  * consume as Rx return full descriptors
  */
 /* Refill rx slots */
-err_t
+static err_t
 descsock_refill_rx_slots(int tier, int max)
 {
     int ret;
@@ -1268,7 +654,7 @@ descsock_refill_rx_slots(int tier, int max)
 }
 
 /* Recycle packets */
-inline void
+static inline void
 clean_tx_completions( UINT16 tier)
 {
     int avail_to_clean, freed;
@@ -1320,16 +706,11 @@ tx_receive_adanvace_consumer(UINT32 tier, int avail_to_clean)
         FIXEDQ_REMOVE(sc->tx_queue.completions[tier]);
 
         if(tx_clean_ctx->pkt != NULL) {
-            //packet_clear_flag(tx_clean_ctx->pkt, PACKET_FLAG_LOCKED);
-           // packet_free(tx_clean_ctx->pkt);
             printf("Cleaning tx send buf %p\n", tx_clean_ctx->xf->data);
 
             xfrag_free(tx_clean_ctx->xf, false);
 
             packet_free(tx_clean_ctx->pkt);
-
-            FIXEDQ_REMOVE(sc->tx_queue.client_buf_stack);
-
 
             sc->stats.pkt_cleaned++;
         }
@@ -1388,7 +769,7 @@ rx_receive_advance_producer(UINT32 tier)
  * Will traverse an array of bytes looking for end-of-packet markers so we know the number of
  * packets that we can consume. Save the packet count to pkt_count to pre-allocate packets later
  */
-int
+static int
 descsock_count_pkts_from_fifo(laden_desc_fifo_t *fifo, UINT32 avail, UINT32 *pkt_count)
 {
     int j = 0;
@@ -1439,7 +820,7 @@ descsock_count_pkts_from_fifo(laden_desc_fifo_t *fifo, UINT32 avail, UINT32 *pkt
 }
 
 /* Consume a descriptors from queue */
-inline void
+static inline void
 rx_receive_advance_consumer(UINT32 tier)
 {
     FIXEDQ_REMOVE(sc->rx_queue.complete_pkt[tier]);
@@ -1450,7 +831,7 @@ rx_receive_advance_consumer(UINT32 tier)
  * based on the number of bytes written to an RX socket.
  * Returns a non negative integer for success, -1 otherwise
  */
-inline int
+static inline int
 rx_send_advance_consumer(int tier)
 {
     /* Advance consumer index writing bytes to socket */
@@ -1470,7 +851,7 @@ rx_send_advance_consumer(int tier)
  * @max is the number of max slots we would like to allocate at any given time
  * Returns the number of allocated rx slots
  */
-inline int
+static inline int
 rx_send_advance_producer(UINT16 tier, int max)
 {
     int sent = 0;
@@ -1501,7 +882,7 @@ rx_send_advance_producer(UINT16 tier, int max)
 /*
  * Allocates a 2K return buf aka xfrag/xdata for packet data to be writen to.
  */
-err_t
+static err_t
 descsock_build_rx_slot(UINT32 tier)
 {
     struct xfrag *xfrag;
@@ -1541,7 +922,7 @@ descsock_build_rx_slot(UINT32 tier)
 }
 
 /* Advance producer index on send ring */
-inline err_t
+static inline err_t
 tx_send_advance_producer(UINT32 tier)
 {
     laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
@@ -1555,7 +936,7 @@ tx_send_advance_producer(UINT32 tier)
  * Adavances the consumer index after writing descriptors/bytes to socket
  * returns the number flushed descriptors
  */
-inline int
+static inline int
 tx_send_advance_consumer(UINT32 tier)
 {
     int n = flush_bytes_to_socket(1, tier);
@@ -1572,7 +953,7 @@ tx_send_advance_consumer(UINT32 tier)
  * Send ring and producer ring socket writev operations, this function writes bytes from a descriptor
  * fifo to a socket
  */
-inline int
+static inline int
 flush_bytes_to_socket(UINT32 tx, int qos)
 {
     int fd, advance, ret;
@@ -1650,7 +1031,7 @@ flush_bytes_to_socket(UINT32 tx, int qos)
  * Tx completions ring or Rx return ring
  * This function reads bytes from a socket to fill a descriptor fifo
  */
-inline int
+static inline int
 refill_inbound_fifo_from_socket(UINT32 tx, UINT32 qos)
 {
     int ret, advance, fd;
@@ -1721,120 +1102,28 @@ refill_inbound_fifo_from_socket(UINT32 tx, UINT32 qos)
     return ret;
 }
 
-/* Get vlan tag from buf */
-// err_t
-// descsock_get_vlantag(struct packet *pkt, UINT16 *tag)
-// {
-//     char *l2hdr;
-//     struct ether_vlan_header *evh;
-//     err_t err = ERR_OK;
+void
+descsock_print_buf(void * buf, int buf_len)
+{
+    char *p = (char *)buf;
+    int i;
 
-//     /* is VLAN set in struct packet. */
-//     if (packet_test_flag(pkt, PACKET_FLAG_ETHERTYPE_VLAN)) {
-//         *tag = pkt->vlan_tag;
-//         goto out;
-//     }
+    if (buf == NULL || buf_len < 0) {
+        DESCSOCK_LOG("NULL buf\n");
+		return;
+    }
 
-//     err = packet_data_pullup_head(pkt, sizeof(*evh), (void **)&l2hdr);
-//     if (err != ERR_OK) {
-//         goto out;
-//     }
+    printf("Buf: %p Length: %d\n", buf, buf_len);
 
-//     /* Check the ethertype in the header and if it indicates a VLAN header, use it. */
-//     evh = (struct ether_vlan_header *)l2hdr;
-//     if (ntohs(evh->evl_encap_proto) == ETHERTYPE_VLAN) {
-//         *tag = ntohs(evh->evl_tag);
-//         goto out;
-//     }
+    for (i = 0; i < buf_len; i++) {
+        if (i % 32 == 0) {
+            printf("\n%06d ", i);
+        }
+        printf("%02x ", p[i]);
+    }
+    printf("\n\n");
+}
 
-// out:
-//     return err;
-// }
-
-/* Get ether type from buf */
-// UINT16
-// descsock_get_ethertype(struct packet *pkt)
-// {
-//     UINT16 ethertype = 0;
-//     char *l2hdr;
-//     struct ether_vlan_header *evh;
-//     struct ether_header *eh;
-
-//     if (packet_data_pullup_head(pkt, sizeof(*evh), (void **)&l2hdr) !=
-//             ERR_OK) {
-//         goto out;
-//     }
-
-//     evh = (struct ether_vlan_header *)l2hdr;
-//     if (ntohs(evh->evl_encap_proto) == ETHERTYPE_VLAN) {
-//         ethertype = ntohs(evh->evl_proto);
-//         pkt->l3hdr = sizeof(*evh);
-//         goto out;
-//     }
-
-//     eh = (struct ether_header *)l2hdr;
-//     ethertype = ntohs(eh->ether_type);
-//     pkt->l3hdr = sizeof(*eh);
-
-// out:
-//     return ethertype;
-// }
-
-// void
-// descsock_print_buf(void * buf, int buf_len)
-// {
-//     unsigned char *p = (char* )buf;
-//     int i;
-
-//     if (buf == NULL || buf_len < 0) {
-//         DESCSOCK_LOG("NULL buf\n");
-// 		return;
-//     }
-
-//     printf("Buf: %p Length: %ld\n", buf, buf_len);
-
-//     for (i = 0; i < buf_len; i++) {
-//         if (i % 32 == 0) {
-//             printf("\n%06d ", i);
-//         }
-//         printf("%02x ", p[i]);
-//     }
-//     printf("\n\n");
-// }
-
-// void
-// descsock_print_pkt(struct packet *pkt)
-// {
-//     unsigned char *p;
-//     pktcursor_t xcur;
-//     err_t err;
-//     int i;
-
-//     if (pkt == NULL) {
-//         goto done;
-//     }
-
-//     xcur = packet_data_begin(pkt);
-//     err = packet_data_pullup(pkt, xcur, packet_data_len(pkt), (void **)&p);
-
-//     if (err != ERR_OK) {
-//         panic("packet_data_pullup() failed - err: %x\n", err);
-//         goto done;
-//     }
-
-//     printf("Pkt: %p Length: %ld Buffer: %p\n", pkt, packet_data_len(pkt), p);
-
-//     for (i = 0; i < packet_data_len(pkt); i++) {
-//         if (i % 32 == 0) {
-//             printf("\n%06d ", i);
-//         }
-//         printf("%02x ", p[i]);
-//     }
-//     printf("\n\n");
-
-// done:
-//     return;
-// }
 
 /*
  * FIFO's Api
@@ -1885,12 +1174,3 @@ empty_desc_fifo_full(empty_desc_fifo_t *fifo)
     int avail = empty_desc_fifo_avail(fifo);
     return (avail == 0);
 }
-
-// int main(int argc, char *argv[])
-// {
-
-//     printf("descsock compile is good\n");
-
-
-//     return EXIT_SUCCESS;
-// }
