@@ -91,7 +91,7 @@ descsock_client_poll(int event_mask)
     // call descsock_poll to read rx sockets for any descriptor
 
     /* Check for received packets */
-    bool ret = descsock_poll(NULL, NULL);
+    bool ret = descsock_poll(event_mask);
     //printf("ret is %d\n", ret);
     if(ret) {
         // got a packet
@@ -102,7 +102,7 @@ descsock_client_poll(int event_mask)
 }
 
 ssize_t
-descsock_client_send(descsock_client_tx_buf_t *buf, const uint64_t len, const int flags)
+descsock_client_send(void *buf, const uint64_t len, const int flags)
 {
     // call descsock_ifoutput sending buf to dma agent
     int sent = descsock_send((void *)buf, len);
@@ -111,7 +111,7 @@ descsock_client_send(descsock_client_tx_buf_t *buf, const uint64_t len, const in
 }
 
 ssize_t
-descsock_client_recv(void * const buf, const uint64_t len, const int flags)
+descsock_client_recv(void *buf, const uint64_t len, const int flags)
 {
     return descsock_recv(buf, DESCSOCK_BUF_SIZE, 0);
 }

@@ -11,6 +11,11 @@
 
 #include <stdbool.h>
 
+#define DESCSOCK_DEBUG_PRINT 0
+#define DESCSOCK_DEBUGF(fmt, rest...) ({if(DESCSOCK_DEBUG_PRINT) { printf("%s():%d " fmt "\n", __FUNCTION__, __LINE__, ##rest); }})
+#define DESCSOCK_LOG(fmt, rest...) printf("descsock: " fmt "\n", ##rest);
+
+
 #define GLOBALSET
 #define BUF_SIZE                2048
 /*

@@ -35,15 +35,13 @@
 #define DESCSOCK_QOS_FROM_QSEL(_qsel)   ((_qsel) >> 1)
 #define DESCSOCK_PATH_MAX           (256)
 
-#define DESCSOCK_DEBUG_PRINT 0
-#define DESCSOCK_DEBUGF(fmt, rest...) ({if(DESCSOCK_DEBUG_PRINT) { printf("%s():%d " fmt "\n", __FUNCTION__, __LINE__, ##rest); }})
-#define DESCSOCK_LOG(fmt, rest...) printf("descsock: " fmt "\n", ##rest);
+
 
 /* TMM dma driver queue metadata */
 #define RING_SIZE                           (256) /* XXX make dynamic? */
 #define RING_MASK                           (RING_SIZE - 1)
 #define RING_WRAP(x)                        ((x) & RING_MASK)
-#define DESCSOCK_MAX_TX_XFRAGS_PER_PACKET   10
+#define DESCSOCK_MAX_TX_XFRAGS_PER_PACKET   5
 #define NUM_TIERS                           4
 
 
@@ -159,8 +157,8 @@ typedef struct  {
 
 typedef struct {
     laden_buf_desc_t    *desc;
-    client_tx_buf_t     *pkt;
-    tx_xfrag_t          *tx_xfrag;
+    struct packet       *pkt;
+    struct xfrag        *xf;
 } tx_completions_ctx_t;
 
 typedef struct {
@@ -197,19 +195,19 @@ typedef struct {
 
 #define VIRTIO_DMA_MASTER "dma-master"
 
-struct tx_context {
-    SLIST_ENTRY(tx_context)     next;
-    tx_xfrag_t                  *tx_xfrag;
-    client_tx_buf_t             *client_buf;
-    laden_buf_desc_t            *desc;
-    UINT64                      idx;
-};
-struct tx_entry {
-    SLIST_ENTRY(tx_entry) entry;
-    tx_xfrag_t *xf;
-    client_tx_buf_t *buf;
-    UINT64 idx;
-};
+// struct tx_context {
+//     SLIST_ENTRY(tx_context)     next;
+//     tx_xfrag_t                  *tx_xfrag;
+//     client_tx_buf_t             *client_buf;
+//     laden_buf_desc_t            *desc;
+//     UINT64                      idx;
+// };
+// struct tx_entry {
+//     SLIST_ENTRY(tx_entry) entry;
+//     tx_xfrag_t *xf;
+//     client_tx_buf_t *buf;
+//     UINT64 idx;
+// };
 
 typedef enum {
     PADC_MODE,
@@ -228,15 +226,21 @@ struct client_buf_ctx {
     TAILQ_ENTRY(client_buf_ctx) next;
 };
 
+struct rx_pkt {
+    STAILQ_ENTRY(rx_pkt) next;
+    struct packet       *pkt;
+};
+
 struct descsock_rx {
     laden_desc_fifo_t                           inbound_descriptors[NUM_TIERS];
     empty_desc_fifo_t                           outbound_descriptors[NUM_TIERS];
 
     rx_extra_fifo_t                             pkt_extras[NUM_TIERS];
     FIXEDQ(, laden_buf_desc_t *, RING_SIZE)     complete_pkt[NUM_TIERS];
-    FIXEDQ(, struct packet *, RING_SIZE)  ready_bufs;
+    FIXEDQ(, struct packet *, RING_SIZE)        ready_bufs;
     int                                         socket_fd[NUM_TIERS];
 
+    STAILQ_HEAD(, rx_pkt)                        pkt_queue;
 };
 
 struct descsock_tx {
@@ -287,25 +291,26 @@ struct descsock_softc {
 BOOL descsock_probe(f5dev_t dev);
 f5device_t *descsock_attach(f5dev_t dev);
 void descsock_detach(f5device_t *devp);
-BOOL descsock_poll(struct dev_poll_param *param, f5device_t *devp);
+BOOL descsock_poll(int event_mask);
+
 
 /*
  * ifnet interface functions
  */
 // static err_t descsock_ifup(struct ifnet *ifp);
 // static err_t descsock_ifdown(struct ifnet *ifp);
-err_t descsock_ifoutput(struct descsock_softc *sc, client_tx_buf_t *buf);
+err_t descsock_ifoutput(struct packet *pkt);
 
 int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id);
-err_t descsock_setup(struct descsock_softc *sc);
-err_t descsock_teardown();
+err_t descsock_setup(void);
+err_t descsock_teardown(void);
 
 
 /*
  * library client API
  */
 int descsock_send(void *handle, UINT32 len);
-int descsock_recv( void *buf, UINT32 len, int flag);
+int descsock_recv(void *buf, UINT32 len, int flag);
 
 client_tx_buf_t* descsock_alloc_xfrag();
 void descsock_free_xfrag(void *handle);

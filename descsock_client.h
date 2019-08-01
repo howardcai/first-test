@@ -105,9 +105,8 @@ typedef struct {
 } descsock_client_tx_buf_t;
 
 struct client_buf {
-    uint32_t len;
-    uint64_t idx;
     void *base;
+    uint32_t len;
 };
 
 /* XXX: put a static asser here to make sure sizeof(descsock_client_tx_buf_t ) == 20 */
@@ -196,7 +195,7 @@ int descsock_client_poll(int event_mask);
  * If errno is EWOULDBLOCK, and the DESCSOCK_NONBLOCK flag is set, then there is
  * back-pressure on the transmit descriptor socket (no room to send).
  */
-ssize_t descsock_client_send(descsock_client_tx_buf_t* buf, const uint64_t len, const int flags);
+ssize_t descsock_client_send(void *buf, const uint64_t len, const int flags);
 
 
 /*
@@ -215,7 +214,7 @@ ssize_t descsock_client_send(descsock_client_tx_buf_t* buf, const uint64_t len, 
  * complete packets have been buffered internally by the client library
  * worke thread (no data to recv).
  */
-ssize_t descsock_client_recv(void * const buf, const uint64_t len, const int flags);
+ssize_t descsock_client_recv(void *buf, const uint64_t len, const int flags);
 
 
 /*

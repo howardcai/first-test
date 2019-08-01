@@ -33,7 +33,7 @@
  * Internal driver functions
  */
 //static void descsock_periodic_task(struct timer *, void *);
-err_t descsock_config_exchange(struct descsock_softc * sc, char * dmapath);
+err_t descsock_config_exchange(char * dmapath);
 int descsock_establish_dmaa_conn(void);
 void descsock_partition_sockets(int socks[], int rx[], int tx[]);
 
@@ -47,14 +47,14 @@ void descsock_partition_sockets(int socks[], int rx[], int tx[]);
  * Building Rx slots, Producer descriptors, Reading bytes/descriptors from sockets, Building packets,
  * Passing packets up the TMM stack
  */
-err_t descsock_build_rx_slot(struct descsock_softc *sep, UINT32 tier);
-inline err_t descsock_refill_rx_slots(struct descsock_softc *sc, int tier, int max);
-inline int refill_inbound_fifo_from_socket(struct descsock_softc *sep,  UINT32 tx,  UINT32 qos);
+err_t descsock_build_rx_slot(UINT32 tier);
+inline err_t descsock_refill_rx_slots(int tier, int max);
+inline int refill_inbound_fifo_from_socket(UINT32 tx,  UINT32 qos);
 int descsock_count_pkts_from_fifo(laden_desc_fifo_t *fifo, UINT32 avail, UINT32 *pkt_count);
-inline int rx_receive_advance_producer(struct descsock_softc *sc, UINT32 tier);
-inline void rx_receive_advance_consumer(struct descsock_softc *sc, UINT32 tier);
-inline int tx_receive_advance_producer(struct descsock_softc *sc, UINT32 tier);
-inline int tx_receive_adanvace_consumer(struct descsock_softc *sc, UINT32 tier, int max);
+inline int rx_receive_advance_producer(UINT32 tier);
+inline void rx_receive_advance_consumer(UINT32 tier);
+inline int tx_receive_advance_producer(UINT32 tier);
+inline int tx_receive_adanvace_consumer(UINT32 tier, int max);
 
 /*
  * Tx
@@ -62,23 +62,23 @@ inline int tx_receive_adanvace_consumer(struct descsock_softc *sc, UINT32 tier, 
  * Writing bytes/descriptors to sockets, Building send descriptors from egress packets
  * Saving packet references for cleaning up when completions arrive
  */
-inline int flush_bytes_to_socket(struct descsock_softc *sep, UINT32 tx, int qos);
-inline err_t tx_send_advance_producer(struct descsock_softc *sc, UINT32 tier);
-inline int tx_send_advance_consumer(struct descsock_softc *sc, UINT32 tier);
-err_t descsock_tx_single_desc_pkt(struct descsock_softc *sc, client_tx_buf_t *buf, UINT32 tier);
-err_t descsock_tx_multi_desc_pkt(struct descsock_softc *sc, struct packet *pkt, UINT32 tier);
-inline int rx_send_advance_producer(struct descsock_softc *sc, UINT16 tier, int max);
-inline int rx_send_advance_consumer(struct descsock_softc *sc, int tier);
-inline void clean_tx_completions(struct descsock_softc *sc, UINT16 tier);
+inline int flush_bytes_to_socket(UINT32 tx, int qos);
+inline err_t tx_send_advance_producer(UINT32 tier);
+inline int tx_send_advance_consumer(UINT32 tier);
+err_t descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier);
+err_t descsock_tx_multi_desc_pkt(struct packet *pkt, UINT32 tier);
+inline int rx_send_advance_producer(UINT16 tier, int max);
+inline int rx_send_advance_consumer(int tier);
+inline void clean_tx_completions(UINT16 tier);
 
 /*
  * Initializing, debug, helper functions
  */
-err_t descsock_init_conn(struct descsock_softc *sc);
+err_t descsock_init_conn();
 
 void descsock_print_buf(void * buf, int buf_len);
 void descsock_print_pkt(struct packet *pkt);
-void descsock_close_fds(struct descsock_softc *sc);
+void descsock_close_fds();
 UINT16 descsock_get_ethertype(struct packet *pkt);
 err_t descsock_get_vlantag(struct packet *pkt, UINT16 *vlan);
 
@@ -94,9 +94,8 @@ BOOL empty_desc_fifo_full(empty_desc_fifo_t *fifo);
 BOOL empty_desc_fifo_empty(empty_desc_fifo_t *fifo);
 int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
 
-err_t descsock_setup(struct descsock_softc *sc);
+err_t descsock_setup();
 err_t descsock_teardown();
-
 
 struct descsock_softc *sc;
 static UINT64 buf_idx = 0;
@@ -121,7 +120,7 @@ int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id
     hudconf.hugepages_path = strdup(dma_shmem_path);
     hudconf.mastersocket = strdup(mastersocket);
     hudconf.svc_ids = svc_id;
-    hudconf.memsize = 32;
+    hudconf.memsize = 64;
     hudconf.num_seps = 1;
     /* size is in mb so we multiple to get mb */
     hudconf.dma_seg_size = (hudconf.memsize * 1024 * 1024);
@@ -155,9 +154,11 @@ int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id
 
     TAILQ_INIT(&sc->client_xfrag_ctx);
 
+    STAILQ_INIT(&sc->rx_queue.pkt_queue);
+
     /* build producer descriptors */
     DESCSOCK_LOG("Producing xdatas\n");
-    i = rx_send_advance_producer(sc, tier, RING_SIZE - 1);
+    i = rx_send_advance_producer(tier, RING_SIZE - 1);
     DESCSOCK_LOG("rx_send_advance producer %d\n", i);
     if(i <= 0) {
         DESCSOCK_LOG("Error pruducing xdatas\n");
@@ -165,7 +166,7 @@ int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id
 
     /* Send empty producer descriptors */
     DESCSOCK_LOG("consuming xdatas\n");
-    i = rx_send_advance_consumer(sc, tier);
+    i = rx_send_advance_consumer(tier);
     DESCSOCK_LOG("rx_send_advance consumer %d\n", i);
     if(i <= 0) {
         DESCSOCK_LOG("Error sending producer descriptors on init");
@@ -179,7 +180,7 @@ int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id
  * send registration message containing this tmm's memory info and number of SEP requests
  */
 err_t
-descsock_init_conn(struct descsock_softc *sc)
+descsock_init_conn()
 {
     /* Get the information where tmm stores its memory */
     err_t err = ERR_OK;
@@ -217,15 +218,15 @@ descsock_init_conn(struct descsock_softc *sc)
      * Initialize xfrag and packet memory pool,
      */
 
-    xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, 256);
-    packet_init_pool(256);
+    xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, RING_SIZE * 2);
+    packet_init_pool(RING_SIZE * 2);
 
     DESCSOCK_LOG("recived master socket %d\n", sc->master_socket_fd);
 
     DESCSOCK_LOG("Sending msg to DMAA %s", msg);
 
     /* Send dma region path info to DMA AGENT */
-    err = descsock_config_exchange(sc, msg);
+    err = descsock_config_exchange(msg);
     if (err != ERR_OK) {
         DESCSOCK_LOG("---- failed to write dma region to dmaa\n");
         err = ERR_CONN;
@@ -262,13 +263,20 @@ descsock_alloc_xfrag()
 
    // struct tx_context *ctx;
 
-    xf = xfrag_alloc();
+    xf = xfrag_alloc(false);
     if(xf == NULL) {
         printf("frag pool is empty\n");
         goto err_out;
     }
 
+    xf->idx = buf_idx;
+
     ctx = malloc(sizeof(struct client_buf_ctx));
+    if(ctx == NULL) {
+        printf("Failed to alloc ctx\n");
+        goto err_out;
+    }
+
     ctx->xf = xf;
 
     ctx->client_buf.base = xf->data;
@@ -281,8 +289,6 @@ descsock_alloc_xfrag()
     /* Allocate a buf_ctx to keep track of this buf for later freeing */
     TAILQ_INSERT_TAIL(&sc->client_xfrag_ctx, ctx, next);
 
-
-
     buf_idx++;
 
     return &ctx->client_buf;
@@ -292,14 +298,34 @@ err_out:
 }
 
 /* Send a buf owned by descsock client */
-int descsock_send(void *handle, UINT32 len)
+int descsock_send(void *buf, UINT32 len)
 {
     err_t ret;
-    //struct tx_context *send_ctx;
+    struct xfrag *xf;
+    struct packet *pkt;
+    bool rx = false;
 
-    client_tx_buf_t *buf = (client_tx_buf_t *)handle;
+    //XXX: Validate buf
 
-    ret = descsock_ifoutput(sc, buf);
+    pkt = packet_alloc();
+    if(pkt == NULL) {
+        DESCSOCK_LOG("Failed to alloc packet\n");
+        exit(EXIT_FAILURE);
+    }
+
+    xf = xfrag_alloc(rx);
+    if(xf == NULL) {
+        DESCSOCK_LOG("Error xfrag_allo() retunred null\n");
+        exit(EXIT_FAILURE);
+    }
+
+    memcpy(xf->data, buf, len);
+    xf->len = len;
+
+    pkt->xf_first = xf;
+    pkt->len = len;
+
+    ret = descsock_ifoutput(pkt);
 
 
     return (ret == ERR_OK)? 1: -1;
@@ -308,16 +334,17 @@ void descsock_free_xfrag(void *handle)
 {
     struct client_buf_ctx *xfrag_ctx;
     client_tx_buf_t *buf = (client_tx_buf_t *)handle;
+    bool rx = false;
 
     if(TAILQ_EMPTY(&sc->client_xfrag_ctx)) {
-        printf("Nothing to free\n");
+        DESCSOCK_LOG("Nothing to free\n");
         return;
     }
 
     TAILQ_FOREACH(xfrag_ctx, &sc->client_xfrag_ctx, next) {
         if(xfrag_ctx->idx == buf->idx) {
 
-            xfrag_free(xfrag_ctx->xf);
+            xfrag_free(xfrag_ctx->xf, rx);
 
             TAILQ_REMOVE(&sc->client_xfrag_ctx, xfrag_ctx, next);
 
@@ -326,26 +353,53 @@ void descsock_free_xfrag(void *handle)
     }
 }
 
-err_t descsock_setup(struct descsock_softc *sc)
+err_t descsock_setup()
 {
     return ERR_OK;
 }
 
-
-
 int
 descsock_recv(void *buf, UINT32 len, int flag)
 {
-    // struct client_rx_buf *xf;
+    struct packet *pkt;
+    bool rx = true;
+   // struct rx_pkt *rxpkt;
 
-    // while(!FIXEDQ_EMPTY(sc->rx_queue.ready_bufs)) {
-    //     xf = FIXEDQ_HEAD(sc->rx_queue.ready_bufs);
-    //     printf("received buf %p %lld\n", xf->base, (UINT64)xf->base);
+    while(!FIXEDQ_EMPTY(sc->rx_queue.ready_bufs)) {
+        pkt = FIXEDQ_HEAD(sc->rx_queue.ready_bufs);
 
-    //     FIXEDQ_REMOVE(sc->rx_queue.ready_bufs);
+
+        printf("received pkt %p with buf %p %lld len %d\n",
+            pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
+
+        memcpy(buf, pkt->xf_first->data, pkt->len);
+        xfrag_free(pkt->xf_first, rx);
+
+        packet_free(pkt);
+
+        FIXEDQ_REMOVE(sc->rx_queue.ready_bufs);
+    }
+
+    // while(!STAILQ_EMPTY(&sc->rx_queue.pkt_queue)) {
+    //     rxpkt = STAILQ_FIRST(&sc->rx_queue.pkt_queue);
+    //     pkt = rxpkt->pkt;
+
+    //     printf("received pkt %p %lld len %d\n",
+    //          pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
+
+    //     memcpy(buf, pkt->xf_first->data, pkt->len);
+
+
+    //     STAILQ_REMOVE_HEAD(&sc->rx_queue.pkt_queue, next);
+
+    //     // xfrag_free(pkt->xf_first);
+
+    //     // packet_free(pkt);
+
+    //     // free(rxpkt);
     // }
 
-    return 0;
+    return 1;
 }
 
 err_t descsock_teardown()
@@ -363,11 +417,158 @@ err_t descsock_teardown()
     return ERR_OK;
 }
 
+BOOL descsock_poll(int mask) {
+
+    UINT32 work = 0;
+    err_t err;
+    int tier, avail, flushed_descriptors;
+    struct packet *pkt;
+    struct xfrag *xf;
+
+    //struct ifnet *ifp = (struct ifnet *)devp;
+    //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
+    //struct descsock_softc *sc = NULL;
+    laden_buf_desc_t *desc;
+    laden_desc_fifo_t *tx_out_fifo;
+
+    rx_extra_fifo_t *extras_fifo;
+
+    /*
+     * Iterate through and poll all tiers
+     */
+    for(tier = 0; tier < DESCSOCK_MAX_QOS_TIERS; tier++) {
+
+        /* Get fifo for current tier */
+        tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
+
+        extras_fifo = &sc->rx_queue.pkt_extras[tier];
+
+
+        /*
+         * Clean all sent completions on tier
+         */
+        clean_tx_completions(tier);
+
+        /*
+         * Flush/empty the send ring if it has anything
+         */
+        avail = laden_desc_fifo_avail(tx_out_fifo);
+        if(avail >= LADEN_DESC_LEN) {
+            /* XXX: if flushed_bytes is -1 then we encountered an error writing to socket */
+
+            flushed_descriptors = tx_send_advance_consumer(tier);
+             printf("flushed bytes %d\n", flushed_descriptors);
+            if(flushed_descriptors == -1) {
+                DESCSOCK_LOG("Failed to write to socket\n");
+            }
+        }
+
+        /*
+         * POLL rx return ring for tier
+         */
+        avail = rx_receive_advance_producer(tier);
+
+
+        /* if not packets have arrived on this tier, poll the next one */
+        if(avail == 0) {
+            continue;
+        }
+
+        /* Got an error while trying to read from socket */
+        if(avail == -1) {
+            DESCSOCK_LOG("Error reading from socket on tier %d\n", tier);
+            goto out;
+        }
+
+        /* Go through all received descriptors */
+        while(!FIXEDQ_EMPTY(sc->rx_queue.complete_pkt[tier])) {
+
+            pkt = packet_alloc();
+            if(pkt == NULL) {
+                DESCSOCK_LOG("packet_alloc returned NULL\n");
+                goto out;
+            }
+
+            /* Build a packet from one or multipe return descriptors */
+            desc = FIXEDQ_HEAD(sc->rx_queue.complete_pkt[tier]);
+            if(desc->len == 0) {
+                DESCSOCK_LOG("len is 0\n");
+                packet_free(pkt);
+                rx_receive_advance_consumer(tier);
+                break;
+            }
+
+            rx_extra_t *pkt_extras = (rx_extra_t *)&extras_fifo->extra[extras_fifo->cons_idx];
+
+            xf = pkt_extras->xf;
+            xf->len = desc->len;
+
+            pkt->xf_first = xf;
+
+            /* XXX: figure out the correct packet len */
+            pkt->len = xf->len;
+
+            /* DMA buf data into packet */
+            //packet_data_dma(pkt, xf, desc->len);
+
+            /* Adavance consumer index on return ring */
+            rx_receive_advance_consumer(tier);
+           // FIXEDQ_REMOVE(sc->rx_queue.complete_pkt[tier]);
+            /* XXX: add support to Rx a multi-desc packet */
+            if(!desc->eop) {
+                DESCSOCK_LOG("Jumbo frame are not accepted yet");
+                exit(-1);
+            }
+
+            /* XXX: Remove later */
+           // descsock_print_pkt(pkt);
+            //ifinput(ifp, pkt);
+
+
+            /* add pkt to rx ready to consume queueu */
+            if(FIXEDQ_FULL(sc->rx_queue.ready_bufs)) {
+                printf("Rx queue is full dropping rx packet\n");
+                sc->stats.pkt_drop++;
+                goto out;
+            }
+
+            printf("Enqueueing Rx packet %p with buf %p %lld len %d\n",
+                 pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
+
+
+            FIXEDQ_INSERT(sc->rx_queue.ready_bufs, pkt);
+
+
+           // FIXEDQ_INSERT(sc->rx_queue.ready_bufs, pkt);
+            // struct rx_pkt *rxpkt = malloc(sizeof(struct rx_pkt));
+            // rxpkt->pkt = pkt;
+
+            // STAILQ_INSERT_TAIL(&sc->rx_queue.pkt_queue, rxpkt, next);
+
+
+
+            work++;
+            sc->stats.pkt_rx++;
+            extras_fifo->cons_idx = RING_WRAP(extras_fifo->cons_idx + 1);
+        }
+
+        err = descsock_refill_rx_slots(tier, avail);
+        if(err != ERR_OK) {
+            return FALSE;
+        }
+    }
+
+out:
+    sc->polls++;
+    sc->idle += (work == 0)? 1 : 0;
+
+    return (work > 0)? TRUE: FALSE;
+}
 /*
  * TX
  */
 err_t
-descsock_ifoutput(struct descsock_softc *sc, client_tx_buf_t *buf)
+descsock_ifoutput(struct packet *pkt)
 {
     err_t err = ERR_OK;
     int bytes_avail;
@@ -388,7 +589,7 @@ descsock_ifoutput(struct descsock_softc *sc, client_tx_buf_t *buf)
         goto out;
     }
 
-    err = descsock_tx_single_desc_pkt(sc, buf, tier);
+    err = descsock_tx_single_desc_pkt(pkt, tier);
 
     sc->stats.pkt_tx += (err == ERR_OK)? 1 : 0;
 
@@ -403,7 +604,7 @@ out:
 
 /* send a single frag packet */
 err_t
-descsock_tx_single_desc_pkt(struct descsock_softc * sc, client_tx_buf_t *buf, UINT32 tier)
+descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
 {
 
     UINT16 vlan_tag = 0;
@@ -422,8 +623,8 @@ descsock_tx_single_desc_pkt(struct descsock_softc * sc, client_tx_buf_t *buf, UI
     // else if(sc->mode == PADC_MODE) {
     //     //send_desc->addr = vtophys(xdata);
     // }
-    send_desc->addr = (UINT64) buf->base;
-    send_desc->len = buf->len + ETHER_CRC_LEN;
+    send_desc->addr = (UINT64) pkt->xf_first->data;
+    send_desc->len = pkt->len + ETHER_CRC_LEN;
     send_desc->type = TX_BUF;
     send_desc->sop = 1;
     send_desc->eop = 1;
@@ -453,14 +654,14 @@ descsock_tx_single_desc_pkt(struct descsock_softc * sc, client_tx_buf_t *buf, UI
     }
 
     clean_ctx->desc = send_desc;
-    clean_ctx->pkt = buf;
-    clean_ctx->tx_xfrag = tx_xfrag_get_byindex(buf->idx);
+    clean_ctx->pkt = pkt;
+    clean_ctx->xf = pkt->xf_first;
 
     /* Advance producer index on send ring */
-    tx_send_advance_producer(sc, tier);
+    tx_send_advance_producer(tier);
 
     /* Send packets here */
-    tx_send_advance_consumer(sc, 0);
+    tx_send_advance_consumer(0);
 
 
 
@@ -902,7 +1103,7 @@ descsock_tx_single_desc_pkt(struct descsock_softc * sc, client_tx_buf_t *buf, UI
 
 /* Send our config to the DMA Agent */
 err_t
-descsock_config_exchange(struct descsock_softc * sc, char * dmapath)
+descsock_config_exchange(char * dmapath)
 {
     err_t err = ERR_OK;
     int n, res, i, epfd;
@@ -1025,7 +1226,7 @@ descsock_establish_dmaa_conn(void)
 
 /* Close master socket and all of unix sockets sent by the DMA Agent */
 void
-descsock_close_fds(struct descsock_softc *sc)
+descsock_close_fds()
 {
     int i;
 
@@ -1048,145 +1249,15 @@ descsock_close_fds(struct descsock_softc *sc)
  * This function will loop through a rx tier, looking for dma descriptors to
  * consume as Rx return full descriptors
  */
-BOOL
-descsock_poll(struct dev_poll_param *param, f5device_t *devp)
-{
-    UINT32 work = 0;
-    err_t err;
-    int tier, avail, flushed_descriptors;
-    struct packet *pkt;
-    struct xfrag *xf;
-
-    //struct ifnet *ifp = (struct ifnet *)devp;
-    //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
-    //struct descsock_softc *sc = NULL;
-    laden_buf_desc_t *desc;
-    laden_desc_fifo_t *tx_out_fifo;
-
-    rx_extra_fifo_t *extras_fifo;
-
-    /*
-     * Iterate through and poll all tiers
-     */
-    for(tier = 0; tier < 1; tier++) {
-
-        /* Get fifo for current tier */
-        tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
-
-        extras_fifo = &sc->rx_queue.pkt_extras[tier];
-
-
-        /*
-         * Clean all sent completions on tier
-         */
-        clean_tx_completions(sc, tier);
-
-        /*
-         * Flush/empty the send ring if it has anything
-         */
-        avail = laden_desc_fifo_avail(tx_out_fifo);
-        if(avail >= LADEN_DESC_LEN) {
-            /* XXX: if flushed_bytes is -1 then we encountered an error writing to socket */
-
-            flushed_descriptors = tx_send_advance_consumer(sc, tier);
-             printf("flushed bytes %d\n", flushed_descriptors);
-            if(flushed_descriptors == -1) {
-                DESCSOCK_LOG("Failed to write to socket\n");
-            }
-        }
-
-        /*
-         * POLL rx return ring for tier
-         */
-        avail = rx_receive_advance_producer(sc, tier);
-
-
-        /* if not packets have arrived on this tier, poll the next one */
-        if(avail == 0) {
-            continue;
-        }
-
-        /* Got an error while trying to read from socket */
-        if(avail == -1) {
-            DESCSOCK_LOG("Error reading from socket on tier %d\n", tier);
-            goto out;
-        }
-
-        /* Go through all received descriptors */
-        while(!FIXEDQ_EMPTY(sc->rx_queue.complete_pkt[tier])) {
-
-            pkt = packet_alloc();
-            if(pkt == NULL) {
-                DESCSOCK_LOG("packet_alloc returned NULL\n");
-                goto out;
-            }
-
-            /* Build a packet from one or multipe return descriptors */
-            desc = FIXEDQ_HEAD(sc->rx_queue.complete_pkt[tier]);
-            if(desc->len == 0) {
-                DESCSOCK_LOG("len is 0\n");
-                packet_free(pkt);
-                rx_receive_advance_consumer(sc, tier);
-                break;
-            }
-
-            rx_extra_t *pkt_extras = (rx_extra_t *)&extras_fifo->extra[extras_fifo->cons_idx];
-
-            xf = pkt_extras->xf;
-            xf->len = desc->len;
-
-            pkt->xf_first = xf;
-
-            /* XXX: figure out the correct packet len */
-            pkt->len = xf->len;
-
-            /* DMA buf data into packet */
-            //packet_data_dma(pkt, xf, desc->len);
-
-            /* Adavance consumer index on return ring */
-            rx_receive_advance_consumer(sc, tier);
-            FIXEDQ_REMOVE(sc->rx_queue.complete_pkt[tier]);
-            /* XXX: add support to Rx a multi-desc packet */
-            if(!desc->eop) {
-                DESCSOCK_LOG("Jumbo frame are not accepted yet");
-                exit(-1);
-            }
-
-            /* XXX: Remove later */
-           // descsock_print_pkt(pkt);
-            //ifinput(ifp, pkt);
-
-            printf("Receiving packet %p %lld\n", pkt->xf_first->data, (UINT64)pkt->xf_first->data);
-            /* add pkt to rx ready to consume queueu */
-            FIXEDQ_INSERT(sc->rx_queue.ready_bufs, pkt);
-
-            work++;
-            sc->stats.pkt_rx++;
-            extras_fifo->cons_idx = RING_WRAP(extras_fifo->cons_idx + 1);
-        }
-
-        err = descsock_refill_rx_slots(sc, tier, avail);
-        if(err != ERR_OK) {
-            return FALSE;
-        }
-    }
-
-out:
-    sc->polls++;
-    sc->idle += (work == 0)? 1 : 0;
-
-    return (work > 0)? TRUE: FALSE;
-}
-
 /* Refill rx slots */
 err_t
-descsock_refill_rx_slots(struct descsock_softc *sc, int tier, int max)
+descsock_refill_rx_slots(int tier, int max)
 {
     int ret;
 
     /* refill producer descriptor ring */
-    rx_send_advance_producer(sc, tier, max);
-    ret = rx_send_advance_consumer(sc, tier);
+    rx_send_advance_producer(tier, max);
+    ret = rx_send_advance_consumer(tier);
     if(ret == -1) {
         DESCSOCK_LOG("Failed to write to DMAA socket");
         return ERR_BUF;
@@ -1197,20 +1268,20 @@ descsock_refill_rx_slots(struct descsock_softc *sc, int tier, int max)
 
 /* Recycle packets */
 inline void
-clean_tx_completions(struct descsock_softc * sc, UINT16 tier)
+clean_tx_completions( UINT16 tier)
 {
     int avail_to_clean, freed;
 
     /* Fill completions ring with descriptor bytes*/
-    avail_to_clean = tx_receive_advance_producer(sc, tier);
+    avail_to_clean = tx_receive_advance_producer(tier);
     if(avail_to_clean == 0 || avail_to_clean == -1) {
         return;
     }
 
     /* advance consumer index by freeing sent packets */
-    freed = tx_receive_adanvace_consumer(sc, tier, avail_to_clean);
+    freed = tx_receive_adanvace_consumer(tier, avail_to_clean);
 
-    DESCSOCK_DEBUGF("Freed packets %d\n", freed);
+    printf("Freed packets %d\n", freed);
 }
 
 /*
@@ -1218,9 +1289,9 @@ clean_tx_completions(struct descsock_softc * sc, UINT16 tier)
  * Returns the number bytes read form socket
  */
 inline int
-tx_receive_advance_producer(struct descsock_softc *sc, UINT32 tier)
+tx_receive_advance_producer(UINT32 tier)
 {
-   int n = refill_inbound_fifo_from_socket(sc, 1, tier);
+   int n = refill_inbound_fifo_from_socket(1, tier);
    if(n == -1) {
        DESCSOCK_LOG("Error reading from DMAA socket\n");
        return -1;
@@ -1233,7 +1304,7 @@ tx_receive_advance_producer(struct descsock_softc *sc, UINT32 tier)
  * Returns the number of recycled packets
  */
 inline int
-tx_receive_adanvace_consumer(struct descsock_softc * sc, UINT32 tier, int avail_to_clean)
+tx_receive_adanvace_consumer(UINT32 tier, int avail_to_clean)
 {
     int i = 0;
     tx_completions_ctx_t *tx_clean_ctx;
@@ -1250,10 +1321,14 @@ tx_receive_adanvace_consumer(struct descsock_softc * sc, UINT32 tier, int avail_
         if(tx_clean_ctx->pkt != NULL) {
             //packet_clear_flag(tx_clean_ctx->pkt, PACKET_FLAG_LOCKED);
            // packet_free(tx_clean_ctx->pkt);
-            printf("Cleaning tx send buf %p\n", tx_clean_ctx->tx_xfrag->base);
-            tx_clean_ctx->pkt = NULL;
-            tx_xfrag_free(tx_clean_ctx->tx_xfrag);
+            printf("Cleaning tx send buf %p\n", tx_clean_ctx->xf->data);
+
+            xfrag_free(tx_clean_ctx->xf, false);
+
+            packet_free(tx_clean_ctx->pkt);
+
             FIXEDQ_REMOVE(sc->tx_queue.client_buf_stack);
+
 
             sc->stats.pkt_cleaned++;
         }
@@ -1275,12 +1350,12 @@ tx_receive_adanvace_consumer(struct descsock_softc * sc, UINT32 tier, int avail_
  * Returns -1 if we encountered a socket read error
  */
 inline int
-rx_receive_advance_producer(struct descsock_softc * sc, UINT32 tier)
+rx_receive_advance_producer(UINT32 tier)
 {
     int i, desc_count;
     UINT32 pkt_count = 0;
     laden_buf_desc_t *desc;
-    int bytes_avail = refill_inbound_fifo_from_socket(sc, 0, tier);
+    int bytes_avail = refill_inbound_fifo_from_socket(0, tier);
     laden_desc_fifo_t *rx_in_fifo = &sc->rx_queue.inbound_descriptors[tier];
 
     if(bytes_avail == 0) {
@@ -1364,7 +1439,7 @@ descsock_count_pkts_from_fifo(laden_desc_fifo_t *fifo, UINT32 avail, UINT32 *pkt
 
 /* Consume a descriptors from queue */
 inline void
-rx_receive_advance_consumer(struct descsock_softc * sc, UINT32 tier)
+rx_receive_advance_consumer(UINT32 tier)
 {
     FIXEDQ_REMOVE(sc->rx_queue.complete_pkt[tier]);
 }
@@ -1375,10 +1450,10 @@ rx_receive_advance_consumer(struct descsock_softc * sc, UINT32 tier)
  * Returns a non negative integer for success, -1 otherwise
  */
 inline int
-rx_send_advance_consumer(struct descsock_softc *sc, int tier)
+rx_send_advance_consumer(int tier)
 {
     /* Advance consumer index writing bytes to socket */
-    int sent_descs = flush_bytes_to_socket(sc, 0, tier);
+    int sent_descs = flush_bytes_to_socket(0, tier);
 
     if(sent_descs == -1) {
         DESCSOCK_LOG("Error writing to DMAA socket on tier %d", tier);
@@ -1395,7 +1470,7 @@ rx_send_advance_consumer(struct descsock_softc *sc, int tier)
  * Returns the number of allocated rx slots
  */
 inline int
-rx_send_advance_producer(struct descsock_softc *sc, UINT16 tier, int max)
+rx_send_advance_producer(UINT16 tier, int max)
 {
     int sent = 0;
     int i;
@@ -1406,7 +1481,7 @@ rx_send_advance_producer(struct descsock_softc *sc, UINT16 tier, int max)
     for(i = 0; i < max; i++) {
 
         /* Allocate an xfrag/xdata */
-        err = descsock_build_rx_slot(sc, tier);
+        err = descsock_build_rx_slot(tier);
         if(err != ERR_OK) {
             DESCSOCK_DEBUGF("Error allocating rx_slot\n");
             break;
@@ -1426,9 +1501,10 @@ rx_send_advance_producer(struct descsock_softc *sc, UINT16 tier, int max)
  * Allocates a 2K return buf aka xfrag/xdata for packet data to be writen to.
  */
 err_t
-descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
+descsock_build_rx_slot(UINT32 tier)
 {
     struct xfrag *xfrag;
+    bool rx = true;
     //void *base = NULL;
     empty_buf_desc_t *producer_desc;
     empty_desc_fifo_t *fifo = &sc->rx_queue.outbound_descriptors[tier];
@@ -1440,7 +1516,7 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
     rx_extra_t *pkt_extras;
 
     //xfrag = packet_data_newfrag(&base);
-    xfrag = xfrag_alloc();
+    xfrag = xfrag_alloc(rx);
     if(xfrag == NULL) {
         DESCSOCK_LOG("xfrag returned null\n");
         return ERR_BUF;
@@ -1465,7 +1541,7 @@ descsock_build_rx_slot(struct descsock_softc * sc, UINT32 tier)
 
 /* Advance producer index on send ring */
 inline err_t
-tx_send_advance_producer(struct descsock_softc * sc, UINT32 tier)
+tx_send_advance_producer(UINT32 tier)
 {
     laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
 
@@ -1479,9 +1555,9 @@ tx_send_advance_producer(struct descsock_softc * sc, UINT32 tier)
  * returns the number flushed descriptors
  */
 inline int
-tx_send_advance_consumer(struct descsock_softc * sc, UINT32 tier)
+tx_send_advance_consumer(UINT32 tier)
 {
-    int n = flush_bytes_to_socket(sc, 1, tier);
+    int n = flush_bytes_to_socket(1, tier);
 
     if(n == -1) {
         DESCSOCK_LOG("Error writing to socket");
@@ -1496,7 +1572,7 @@ tx_send_advance_consumer(struct descsock_softc * sc, UINT32 tier)
  * fifo to a socket
  */
 inline int
-flush_bytes_to_socket(struct descsock_softc * sc, UINT32 tx, int qos)
+flush_bytes_to_socket(UINT32 tx, int qos)
 {
     int fd, advance, ret;
     char *buf;
@@ -1574,7 +1650,7 @@ flush_bytes_to_socket(struct descsock_softc * sc, UINT32 tx, int qos)
  * This function reads bytes from a socket to fill a descriptor fifo
  */
 inline int
-refill_inbound_fifo_from_socket(struct descsock_softc *sc, UINT32 tx, UINT32 qos)
+refill_inbound_fifo_from_socket(UINT32 tx, UINT32 qos)
 {
     int ret, advance, fd;
     char *buf;

@@ -22,11 +22,11 @@
 
 uint16_t chksum(uint16_t *buf, int nwords);
 void prep_dummypkt(void *buf_base);
+void send_packets(int count);
 
 
 int main(int argc, char *argv[]) {
 
-    descsock_client_tx_buf_t *txbuf;
     void *rxbuf;
     int ret = 0;;
 
@@ -45,54 +45,37 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    /* Allocate a send buf from descsock library */
-    txbuf = descsock_client_alloc_buf();
-
-    /* Allocate a receive buf to revc data into */
+    /* To receive data into */
     rxbuf = malloc(DESCSOCK_BUF_SIZE);
-
-    if(txbuf == NULL || rxbuf == NULL) {
-        printf("buf is null\n");
+    if(rxbuf == NULL) {
+        printf("rxbuf returned null on malloc\n");
         exit(EXIT_FAILURE);
     }
-
-    /* dummy packet */
-    prep_dummypkt(txbuf->base);
-    txbuf->len = ETHER_HEADER_LEN + IP_HEADER_LEN + sizeof(descsock_client_tx_buf_t);
-
-    printf("Sending buf %p %lu\n", txbuf->base, (uint64_t)txbuf->base);
-    ret = descsock_client_send(txbuf, txbuf->len, 0);
-    if(!ret) {
-        printf("Failed to send\n");
-        exit(EXIT_FAILURE);
-    }
-
-    sleep(2);
 
     while(1) {
 
         /* Poll descsock lib */
         ret = descsock_client_poll(0);
+        /* XXX: Maybe returned the number of packet polled ? */
         if(ret) {
 
             /* You got mail! */
             printf("Packets ready to be consumed\n");
+
             descsock_client_recv(rxbuf, DESCSOCK_BUF_SIZE, 0);
            // break;
         }
         else {
             printf("no packets\n");
+            printf("Sending 10 packet\n");
+            send_packets(10);
         }
-
-        txbuf = descsock_client_alloc_buf();
-        printf("Sending buf %p %lu\n", txbuf->base, (uint64_t)txbuf->base);
-        descsock_client_send(txbuf, txbuf->len, 0);
 
         sleep(2);
     }
 
 
-    descsock_client_free_buf(txbuf);
+    //descsock_client_free_buf(txbuf);
 
     free(rxbuf);
     free(client);
@@ -103,6 +86,38 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
+/*
+ * Allocate <count> dummy packet to send
+ */
+void send_packets(int count)
+{
+    int i;
+
+    struct client_buf bufs[count];
+
+     /*Allocate mem for 10 packets */
+    for(i = 0; i < count; i++) {
+        bufs[i].base = malloc(DESCSOCK_BUF_SIZE);
+        if(bufs[i].base == NULL) {
+            printf("FAiled\n");
+            exit(EXIT_FAILURE);
+        }
+
+        prep_dummypkt(bufs[i].base);
+        bufs[i].len = ETHER_HEADER_LEN + IP_HEADER_LEN + sizeof(struct client_buf);
+    }
+
+    /* send packets */
+    for(i = 0; i < count; i++) {
+        descsock_client_send(bufs[i].base, bufs[i].len, 0);
+    }
+
+    /*Free sent packets */
+    for(i = 0; i < count; i++) {
+        free(bufs[i].base);
+    }
+
+}
 void prep_dummypkt(void *buf_base)
 {
      /* Add ether header to buf */

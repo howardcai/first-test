@@ -6,49 +6,41 @@
 #include "../sys/types.h"
 #include "packet.h"
 
-#define RING_SIZE 256
 
 
-static FIXEDQ(, struct client_rx_buf, RING_SIZE)    client_rx_bufstack;
-static TAILQ_HEAD(, packet)                         pkt_pool_head;
+//static TAILQ_HEAD(, packet) pkt_pool_head;
+//static FIXEDQ(, struct packet, PKT_QUEUE_SIZE) pkt_queue;
+static SLIST_HEAD(, packet)     pkt_stack_head;
+void *pkts_base_addr;
 
 
 void packet_init_pool(int num_of_pkts)
 {
     int i;
-    struct packet *pkt;
+    UINT64 offset = 0;
 
-    FIXEDQ_INIT(client_rx_bufstack);
-    TAILQ_INIT(&pkt_pool_head);
+    pkts_base_addr = malloc(sizeof(struct packet) * num_of_pkts);
+    if(pkts_base_addr == NULL) {
+        DESCSOCK_LOG("pkts base addre retunred NULL on malloc\n");
+        exit(EXIT_FAILURE);
+    }
 
     for(i = 0; i < num_of_pkts; i++) {
+        struct packet *pkt = (struct packet *)(pkts_base_addr + offset);
 
-        pkt = malloc(sizeof(struct packet));
-        memset(pkt, 0, sizeof(struct packet));
+        // XXX: validate pkt is not off bounds
 
-        if(pkt == NULL) {
-            printf("Failed to malloc packet\n");
-            return;
-        }
+        SLIST_INSERT_HEAD(&pkt_stack_head, pkt, next);
 
-        TAILQ_INSERT_TAIL(&pkt_pool_head, pkt, next);
+        offset += sizeof(struct packet);
     }
+
 }
 
 void packet_pool_free()
 {
-    struct packet *pkt;
-    struct xfrag *xf;
-
-    while(TAILQ_EMPTY(&pkt_pool_head)) {
-        pkt = TAILQ_FIRST(&pkt_pool_head);
-        TAILQ_REMOVE(&pkt_pool_head, pkt, next);
-
-        // free xfrags here
-        xf = pkt->xf_first;
-        xfrag_free(xf);
-
-        free(pkt);
+    if(pkts_base_addr != NULL) {
+        free(pkts_base_addr);
     }
 }
 
@@ -59,23 +51,27 @@ BOOL packet_check(struct packet *pkt)
 
 struct packet* packet_alloc()
 {
-    struct packet *pkt = TAILQ_FIRST(&pkt_pool_head);
+    struct packet *pkt = SLIST_FIRST(&pkt_stack_head);
     if(pkt == NULL) {
-        printf("No packets in pool\n");
+        DESCSOCK_LOG("No packets in pool\n");
         exit(EXIT_FAILURE);
     }
-    memset(pkt, 0, sizeof(struct packet));
+    //printf("allocated packet %p\n", pkt);
+
+    SLIST_REMOVE_HEAD(&pkt_stack_head, next);
 
     return pkt;
+
 }
 void packet_free(struct packet *pkt)
 {
-    /*
-     * reset flags, put back into circulation
-     */
-    memset(pkt, 0, sizeof(struct packet));
-    TAILQ_INSERT_TAIL(&pkt_pool_head, pkt, next);
+    pkt->vlan_tag = 0;
+    pkt->len = 0;
+    pkt->magic = 0;
+    pkt->flags = 0;
+    pkt->xf_first = NULL;
 
+    SLIST_INSERT_HEAD(&pkt_stack_head, pkt, next);
 }
 BOOL packet_data_singlefrag(struct packet *pkt)
 {
