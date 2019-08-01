@@ -6,7 +6,7 @@
  * form or by any means, electronic or mechanical, for any purpose,
  * without express written permission of F5 Networks, Inc. $
  *
- * Descriptor Socket Network Interface Driver
+ * Descriptor Socket Network Interface Driver framework
  *
  * $Id: //depot/tmos/core-ce-platform/tmm/dev/descsock/if_descsock.c#4 $
  */
@@ -24,6 +24,7 @@
 #include "kern/sys.h"
 #include "net/packet.h"
 #include "net/xfrag_mem.h"
+#include "../descsock_client.h"
 
 #include "descsock.h"
 
