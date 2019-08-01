@@ -11,9 +11,6 @@
 
 #include "types.h"
 
-#define STANDALONE_PACKET    (1 << 0)
-#define STANDALONE_TRANSPORT (1 << 1)
-
 struct hudconf {
     UINT64          memsize;
     UINT32          queue_size;

@@ -7,7 +7,6 @@
 #include "xfrag_mem.h"
 
 struct packet {
-    //TAILQ_ENTRY(packet) next;
     SLIST_ENTRY(packet) next;
     UINT16              magic;
     UINT32              len;
@@ -16,13 +15,6 @@ struct packet {
     UINT64              flags;
     /* Add more fields as we go  */
 };
-
-typedef struct {
-    int top;
-    UINT32 capacity;
-    struct packet *array;
-}pkt_stack_t;
-
 
 void packet_init_pool(int num_of_pkts);
 void packet_pool_free();

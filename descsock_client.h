@@ -227,10 +227,6 @@ ssize_t descsock_client_recv(void *buf, const uint64_t len, const int flags);
  */
 int descsock_client_ctrl(const int cmd, ...);
 
-descsock_client_tx_buf_t* descsock_client_alloc_buf();
-void descsock_client_free_buf(descsock_client_tx_buf_t *buf);
-
-
 /*
  * This cleanly closes the connection to the DMA Agent associated with this
  * process / library worker thread, unmaps any shared memory, and frees any

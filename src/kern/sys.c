@@ -58,8 +58,7 @@ static const struct option long_options[] =
 /*
  * System paramter list (from invocation).
  */
-// GLOBALSET int sys_argc;
-// GLOBALSET char **sys_argv;
+
 extern char *optarg;
 
 err_t
@@ -456,14 +455,3 @@ descsock_get_basename(char *path)
 {
     return basename(path);
 }
-
-// int main(int argc, char *argv[])
-// {
-
-//     sys_argv = argv;
-//     sys_argc = argc;
-
-//     sys_hudconf_init();
-
-//     return EXIT_SUCCESS;
-// }

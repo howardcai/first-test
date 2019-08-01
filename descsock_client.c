@@ -74,17 +74,6 @@ descsock_client_open(descsock_client_spec_t * const spec, const int flags)
     return ret;
 }
 
-descsock_client_tx_buf_t *
-descsock_client_alloc_buf()
-{
-    return (descsock_client_tx_buf_t*) descsock_alloc_xfrag();
-}
-
-void descsock_client_free_buf(descsock_client_tx_buf_t *buf)
-{
-    descsock_free_xfrag((void* )buf);
-}
-
 int
 descsock_client_poll(int event_mask)
 {
