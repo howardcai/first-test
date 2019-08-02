@@ -15,9 +15,9 @@
 #include <sys/epoll.h>
 
 #include "sys/types.h"
-#include "sys/fixed_queue.h"
-#include "kern/err.h"
-#include "net/xfrag_mem.h"
+#include "fixed_queue.h"
+#include "err.h"
+#include "xfrag_mem.h"
 
 #define DESCSOCK_POLL_USEC          (50)
 #define DESCSOCK_NOMINAL_BITRATE    (120000000000ULL)

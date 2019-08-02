@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
-#include "../sys/fixed_queue.h"
-#include "../sys/types.h"
+#include "fixed_queue.h"
+#include "types.h"
 #include "packet.h"
 
 /*

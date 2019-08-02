@@ -5,8 +5,8 @@
 #include <string.h>
 #include <assert.h>
 
-#include "../sys/types.h"
-#include "../kern/sys.h"
+#include "types.h"
+#include "sys.h"
 #include "xfrag_mem.h"
 
 /*

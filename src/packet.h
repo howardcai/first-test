@@ -3,7 +3,7 @@
 
 #include <sys/queue.h>
 
-#include "../sys/types.h"
+#include "types.h"
 #include "xfrag_mem.h"
 
 struct packet {

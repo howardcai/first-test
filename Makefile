@@ -8,13 +8,14 @@
 
 
 ## Simple Makefile for now ###
+# XXX: add pipeline gitlab support
 all: runner debug
 
-runner: tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c
-	gcc -Wall tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c -lpthread -o runner
+runner: tester2.c src/descsock_client.c src/descsock.c src/sys.c src/packet.c src/xfrag_mem.c
+	gcc -Wall tester2.c src/descsock_client.c src/descsock.c src/sys.c src/packet.c src/xfrag_mem.c -lpthread -o runner
 
-debug: tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c
-	gcc -Wall -g tester2.c descsock_client.c src/descsock.c src/kern/sys.c src/net/packet.c src/net/xfrag_mem.c -lpthread -o debug
+debug: tester2.c src/descsock_client.c src/descsock.c src/sys.c src/packet.c src/xfrag_mem.c
+	gcc -Wall -g tester2.c src/descsock_client.c src/descsock.c src/sys.c src/packet.c src/xfrag_mem.c -lpthread -o debug
 
 clean:
 	rm runner

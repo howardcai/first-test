@@ -18,8 +18,8 @@
 #include <sys/epoll.h>
 #include <errno.h>
 
-#include "../sys/types.h"
-#include "../sys/hudconf.h"
+#include "types.h"
+#include "hudconf.h"
 #include "sys.h"
 #include "err.h"
 

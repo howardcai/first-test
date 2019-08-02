@@ -18,13 +18,13 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "sys/types.h"
-#include "sys/hudconf.h"
-#include "sys/fixed_queue.h"
-#include "kern/sys.h"
-#include "net/packet.h"
-#include "net/xfrag_mem.h"
-#include "../descsock_client.h"
+#include "types.h"
+#include "hudconf.h"
+#include "fixed_queue.h"
+#include "sys.h"
+#include "packet.h"
+#include "xfrag_mem.h"
+#include "descsock_client.h"
 
 #include "descsock.h"
 

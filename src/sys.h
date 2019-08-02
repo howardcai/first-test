@@ -13,7 +13,7 @@
 #include <sys/uio.h>
 #include <sys/epoll.h>
 
-#include "../sys/types.h"
+#include "types.h"
 #include "err.h"
 
 #define PAGE_SHIFT                  (12)
