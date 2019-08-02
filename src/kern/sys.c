@@ -397,13 +397,6 @@ descsock_recv_socket_conns(int fd, int * socks)
     return ERR_OK;
 }
 
-/* Get the hugepage memory for this descsock lib */
-struct tmm_memory *
-sys_get_tmm_mem(void) {
-
-    return NULL;
-}
-
 /*
  * Read into vector from file.
  */

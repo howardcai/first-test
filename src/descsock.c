@@ -88,8 +88,9 @@ BOOL empty_desc_fifo_full(empty_desc_fifo_t *fifo);
 BOOL empty_desc_fifo_empty(empty_desc_fifo_t *fifo);
 int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
 
-
-
+/*
+ * Main structure used as core of the framework
+ */
 struct descsock_softc *sc;
 
 int
@@ -155,7 +156,7 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
 
 /*
  * Init descsock framework
- * send registration message containing this tmm's memory info and number of SEP requests
+ * send registration message containing this driver memory info and number SEP info
  */
 err_t
 descsock_init_conn()
@@ -259,7 +260,6 @@ int descsock_send(void *buf, UINT32 len)
 
     ret = descsock_ifoutput(pkt);
 
-
     return (ret == ERR_OK)? 1: -1;
 }
 
@@ -272,21 +272,24 @@ descsock_recv(void *buf, UINT32 len, int flag)
     while(!FIXEDQ_EMPTY(sc->rx_queue.rx_pkt_queue)) {
         pkt = FIXEDQ_HEAD(sc->rx_queue.rx_pkt_queue);
 
-
         printf("received pkt %p with buf %p %lld len %d\n",
             pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
 
         memcpy(buf, pkt->xf_first->data, pkt->len);
+
+        /* Recycle DMA bufs  */
         xfrag_free(pkt->xf_first, rx);
 
         packet_free(pkt);
 
         FIXEDQ_REMOVE(sc->rx_queue.rx_pkt_queue);
     }
+
     return 1;
 }
 
-err_t descsock_teardown()
+err_t
+descsock_teardown()
 {
     free(hudconf.hugepages_path);
     free(hudconf.mastersocket);
@@ -300,7 +303,8 @@ err_t descsock_teardown()
     return ERR_OK;
 }
 
-BOOL descsock_poll(int mask) {
+BOOL
+descsock_poll(int mask) {
 
     UINT32 work = 0;
     err_t err;
@@ -411,7 +415,6 @@ BOOL descsock_poll(int mask) {
 
             printf("Enqueueing Rx packet %p with buf %p %lld len %d\n",
                  pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
-
 
             /*
              * Insert receved packets into queue

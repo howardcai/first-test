@@ -65,8 +65,8 @@ void xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
         assert((UINT64)rawbytes + XFRAG_SIZE <= (UINT64)rawbase + sz);
         xf->data = rawbytes;
 
-
         //xxx: add stats here
+        /* Hafl of bufs are used for as Rx DMA bufs and the other half for Tx DMA bufs */
         if(count < (num_of_bufs / 2)) {
             TAILQ_INSERT_TAIL(&xfrag_pool_head, xf, next);
         }
@@ -78,9 +78,7 @@ void xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
 
         offset += sizeof(struct xfrag);
         count++;
-        //offset += BUF_SIZE;
     }
-
 }
 
 /*

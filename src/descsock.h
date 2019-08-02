@@ -8,7 +8,7 @@
  *
  * Descriptor Socket Network Interface Driver
  *
- * $Id: //depot/tmos/core-ce-platform/tmm/dev/descsock/if_descsock.h#4 $
+ *
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -26,16 +26,13 @@
 
 #define ETHER_CRC_LEN               4
 
-
 /*
  * QoS selection TBD
  */
-#define DESCSOCK_QSEL(_tx, _qos)    (((_tx)?1:0) | (((_qos) & (DESCSOCK_MAX_QOS_TIERS - 1)) << 1))
+#define DESCSOCK_QSEL(_tx, _qos)        (((_tx)?1:0) | (((_qos) & (DESCSOCK_MAX_QOS_TIERS - 1)) << 1))
 #define DESCSOCK_TX_FROM_QSEL(_qsel)    ((_qsel) & 1)
 #define DESCSOCK_QOS_FROM_QSEL(_qsel)   ((_qsel) >> 1)
-#define DESCSOCK_PATH_MAX           (256)
-
-
+#define DESCSOCK_PATH_MAX               256
 
 /* TMM dma driver queue metadata */
 #define RING_SIZE                           (256) /* XXX make dynamic? */
@@ -46,14 +43,7 @@
 
 
 #define DESCSOCK_MAX_PER_POLL               32
-#define DESCSOCK_MAX_PER_SEND               (64)
-
-/* Add more flags for ePVA, sPVA, DDoS, etc. as needed. */
-#define DESCSOCK_FLAG_VIRT_ADDR     (1)
-#define DESCSOCK_FLAG_PHYS_ADDR     (2)
-#define DESCSOCK_FLAG_RUNTIME_DEBUG (4)
-#define DESCSOCK_FLAG_FAKE_PCI      (8)
-
+#define DESCSOCK_MAX_PER_SEND               64
 
 typedef enum {
     RX_RET    = 1,
@@ -214,11 +204,9 @@ struct descsock_softc {
     struct descsock_rx          rx_queue;
     struct descsock_tx          tx_queue;
 
-    BOOL                                        descsock_l2_override;
-    dma_region_t               dma_region;
+    BOOL                        descsock_l2_override;
+    dma_region_t                dma_region;
   };
-
-
 
 
 /*
@@ -234,14 +222,13 @@ BOOL descsock_poll(int event_mask);
 /*
  * ifnet interface functions
  */
-int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id);
 err_t descsock_setup(void);
 err_t descsock_teardown(void);
-
 
 /*
  * library client API
  */
+int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id);
 int descsock_send(void *handle, UINT32 len);
 int descsock_recv(void *buf, UINT32 len, int flag);
 

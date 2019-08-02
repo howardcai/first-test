@@ -98,18 +98,10 @@ typedef struct {
  */
 extern volatile const descsock_client_stats_t *descsock_stats;
 
-typedef struct {
-    void *base;
-    uint32_t len;
-    uint64_t idx;
-} descsock_client_tx_buf_t;
-
 struct client_buf {
     void *base;
     uint32_t len;
 };
-
-/* XXX: put a static asser here to make sure sizeof(descsock_client_tx_buf_t ) == 20 */
 
 typedef struct {
     /*
@@ -131,7 +123,6 @@ typedef struct {
      */
     int     svc_id;
 } descsock_client_spec_t;
-
 
 /*
  * Flag bits for open / send / recv @flags argument.

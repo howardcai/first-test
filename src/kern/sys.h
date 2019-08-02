@@ -70,8 +70,6 @@ int descsock_epoll_wait(int epfd, struct epoll_event *events, int maxevents, int
 
 err_t descsock_recv_socket_conns(int fd, int * socks);
 
-struct tmm_memory * sys_get_tmm_mem(void);
-
 SIZE descsock_readv_file(file_t fd, struct iovec *iov, int iovcnt);
 
 SIZE descsock_writev_file(file_t fd, const struct iovec *iov, int iovcnt);

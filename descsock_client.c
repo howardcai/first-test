@@ -1,3 +1,16 @@
+/*
+ * $F5Copyright_C:
+ * Copyright (C) F5 Networks, Inc. 2018
+ *
+ * No part of the software may be reproduced or transmitted in any
+ * form or by any means, electronic or mechanical, for any purpose,
+ * without express written permission of F5 Networks, Inc. $
+ *
+ * Descriptor Socket Network Interface Driver Framework
+ *
+ *
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,11 +45,6 @@ static int init_descosck_lib(void);
 static int
 init_descosck_lib() {
     int ret;
-    //char argv[2][DESCSOCK_PATHLEN];
-    //snprintf(argv[0], DESCSOCK_PATHLEN, "--hugepages_path %s", spec->dma_shmem_path);
-    //snprintf(argv[1], DESCSOCK_PATHLEN, "--mastersocket %s", spec->master_socket_path);
-
-    //printf("a: %s b: %s\n", a, b);
 
     ret = descsock_init(0, config.dma_shmem_path, config.master_socket_path, config.svc_id);
     if(ret == FAILED) {
@@ -44,10 +52,10 @@ init_descosck_lib() {
         exit(EXIT_FAILURE);
     }
 
-
     return ret;
 }
 
+/* XXX: Implemented multi-thread */
 int
 descsock_client_open(descsock_client_spec_t * const spec, const int flags)
 {
@@ -77,23 +85,22 @@ descsock_client_open(descsock_client_spec_t * const spec, const int flags)
 int
 descsock_client_poll(int event_mask)
 {
-    // call descsock_poll to read rx sockets for any descriptor
-
     /* Check for received packets */
     bool ret = descsock_poll(event_mask);
-    //printf("ret is %d\n", ret);
+
     if(ret) {
-        // got a packet
+        /* got a packet */
         return 1;
     }
 
     return 0;
 }
 
+/* Send a buf to the descsock framework */
 ssize_t
 descsock_client_send(void *buf, const uint64_t len, const int flags)
 {
-    // call descsock_ifoutput sending buf to dma agent
+    /* call descsock_ifoutput sending buf to dma agent */
     int sent = descsock_send((void *)buf, len);
 
     return sent;
