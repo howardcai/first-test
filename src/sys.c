@@ -58,7 +58,6 @@ static const struct option long_options[] =
 /*
  * System paramter list (from invocation).
  */
-
 extern char *optarg;
 
 err_t

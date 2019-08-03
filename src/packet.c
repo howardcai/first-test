@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
+
+#include "common.h"
 #include "fixed_queue.h"
 #include "types.h"
 #include "packet.h"
@@ -18,7 +20,8 @@ void *pkts_base_addr;
 
 
 /* Allocate a block of memory and build packet objects, and add to pkt stack */
-void packet_init_pool(int num_of_pkts)
+err_t
+packet_init_pool(int num_of_pkts)
 {
     int i;
     UINT64 offset = 0;
@@ -26,18 +29,22 @@ void packet_init_pool(int num_of_pkts)
     pkts_base_addr = malloc(sizeof(struct packet) * num_of_pkts);
     if(pkts_base_addr == NULL) {
         DESCSOCK_LOG("pkts base addre retunred NULL on malloc\n");
-        exit(EXIT_FAILURE);
+        goto err_out;
     }
 
     for(i = 0; i < num_of_pkts; i++) {
         struct packet *pkt = (struct packet *)(pkts_base_addr + offset);
 
         // XXX: validate pkt is not off bounds
-
         SLIST_INSERT_HEAD(&pkt_stack_head, pkt, next);
 
         offset += sizeof(struct packet);
     }
+
+    return ERR_OK;
+
+err_out:
+    return ERR_MEM;
 }
 
 /* Free the previously allocated blob of meme */

@@ -18,6 +18,7 @@
 #include <string.h>
 #include <stdbool.h>
 
+#include "common.h"
 #include "types.h"
 #include "hudconf.h"
 #include "fixed_queue.h"
@@ -25,7 +26,6 @@
 #include "packet.h"
 #include "xfrag_mem.h"
 #include "descsock_client.h"
-
 #include "descsock.h"
 
 
@@ -93,36 +93,42 @@ int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
  */
 struct descsock_softc *sc;
 
+/*
+ * Start descsock framewor, Allocate DMA memory, send config message to DMAA
+ * Returns 1 on success, -1 on failuer
+ */
 int
 descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
 {
     int i;
-    int ret = 1;
+    int ret = SUCCESS;
     err_t err = ERR_OK;
     int tier = 0;
 
     hudconf.hugepages_path = strdup(dma_shmem_path);
     hudconf.mastersocket = strdup(mastersocket);
     hudconf.svc_ids = svc_id;
-    hudconf.memsize = 64;
+    hudconf.memsize = DESCSOCK_DMA_MEM_SIZE;
     hudconf.num_seps = 1;
     /* size is in mb so we multiple to get mb */
     hudconf.dma_seg_size = (hudconf.memsize * 1024 * 1024);
     /* align for unix page size */
-    printf("total mem %lld\n", hudconf.dma_seg_size);
+    DESCSOCK_LOG("Total mem allocated for descsock framework %lld\n", hudconf.dma_seg_size);
     hudconf.dma_seg_size = ((hudconf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
 
     sc = malloc(sizeof(struct descsock_softc));
     if(sc == NULL) {
-        printf("Error allocating sc\n");
-        exit(EXIT_FAILURE);
+        DESCSOCK_LOG("Error allocating sc\n");
+        ret = FAILED;
+        goto err_out;
     }
 
     /* Init xfrag buf pool and device */
     err = descsock_init_conn(sc);
     if(err != ERR_OK) {
-        printf("Error initializing connection\n");
-        exit(EXIT_FAILURE);
+        DESCSOCK_LOG("Error initializing connection\n");
+        ret = FAILED;
+        goto err_out;
     }
 
     /* Init queues for all tiers
@@ -152,6 +158,15 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
     }
 
     return ret;
+
+err_out:
+    if(sc != NULL) {
+        free(hudconf.hugepages_path);
+        free( hudconf.mastersocket);
+        free(sc);
+    }
+
+    return FAILED;
 }
 
 /*
@@ -161,7 +176,6 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
 err_t
 descsock_init_conn()
 {
-    /* Get the information where tmm stores its memory */
     err_t err = ERR_OK;
     char msg[DESCSOCK_PATH_MAX];
     int i;
@@ -176,93 +190,120 @@ descsock_init_conn()
     /* try mmaping the passed in hugepages path */
     sc->dma_region.base = descsock_map_dmaregion(sc->dma_region.path, sc->dma_region.len);
     if(sc->dma_region.base == NULL) {
-        printf("Failed to map hugepages\n");
-        exit(EXIT_FAILURE);
+        DESCSOCK_LOG("Failed to map hugepages\n");
+        err = ERR_CONN;
+        goto err_out;
     }
 
+    /* Create message string to send to dmaa */
     snprintf(msg, DESCSOCK_PATH_MAX, "path=%s\nbase=%llu\nlength=%llu\nnum_sep=1\npid=1\nsvc_ids=1\n\n",
              sc->dma_region.path, (UINT64)sc->dma_region.base, sc->dma_region.len);
 
-    printf("%s\n", msg);
+    DESCSOCK_LOG("%s\n", msg);
 
     /* call the master socket here */
     sc->master_socket_fd = descsock_establish_dmaa_conn();
     if(sc->master_socket_fd < 0) {
         DESCSOCK_LOG("Failed to connect to master socket at %s", MASTER_SOCKET);
         err = ERR_CONN;
-        goto out;
+        goto err_out;
     }
 
     /*
      * Initialize xfrag and packet memory pool,
      */
+    err = xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, RING_SIZE * 2);
+    if(err != ERR_OK) {
+        err = ERR_MEM;
+        goto err_out;
+    }
 
-    xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, RING_SIZE * 2);
-    packet_init_pool(RING_SIZE * 2);
+    err = packet_init_pool(RING_SIZE * 2);
+    if(err != ERR_OK) {
+        err = ERR_MEM;
+        goto err_out;
+    }
 
-    DESCSOCK_LOG("recived master socket %d\n", sc->master_socket_fd);
+    DESCSOCK_LOG("received master socket %d\n", sc->master_socket_fd);
 
     DESCSOCK_LOG("Sending msg to DMAA %s", msg);
 
     /* Send dma region path info to DMA AGENT */
     err = descsock_config_exchange(msg);
     if (err != ERR_OK) {
-        DESCSOCK_LOG("---- failed to write dma region to dmaa\n");
+        DESCSOCK_LOG("Failed to write dma region to dmaa\n");
         err = ERR_CONN;
-        goto out;
+        goto err_out;
     }
 
     /* Set non-blocking on all TX, RX sockets */
     for(i = 0; i < NUM_TIERS; i++) {
         if (sys_set_non_blocking(sc->rx_queue.socket_fd[i], 1) != ERR_OK) {
             DESCSOCK_LOG("Error setting non_blocking on rx socket");
-            err = ERR_MEM;
-            goto out;
+            err = ERR_IO;
+            goto err_out;
         }
         if (sys_set_non_blocking(sc->tx_queue.socket_fd[i], 1) != ERR_OK) {
             DESCSOCK_LOG("Error setting non_blocking on tx socket");
-            err = ERR_MEM;
-            goto out;
+            err = ERR_IO;
+            goto err_out;
         }
     }
 
-out:
+    return err;
+
+err_out:
+    /* Free DMA mem */
+    xfrag_pool_free();
+
+    packet_pool_free();
+
     return err;
 }
 
 /* Send a buf owned by descsock client */
+// XXX: Return the number of bytes writen
 int descsock_send(void *buf, UINT32 len)
 {
-    err_t ret;
+    err_t err = ERR_OK;
     struct xfrag *xf;
     struct packet *pkt;
     bool rx = false;
 
-    //XXX: Validate buf
+    //XXX: Validate buf from client
 
     pkt = packet_alloc();
     if(pkt == NULL) {
         DESCSOCK_LOG("Failed to alloc packet\n");
-        exit(EXIT_FAILURE);
+        err = ERR_MEM;
+        goto err_out;
     }
 
     xf = xfrag_alloc(rx);
     if(xf == NULL) {
         DESCSOCK_LOG("Error xfrag_allo() retunred null\n");
-        exit(EXIT_FAILURE);
+        err = ERR_MEM;
+        goto err_out;
     }
 
+    /* Copy packet data from user to a send buf to send in descriptor */
     memcpy(xf->data, buf, len);
-    xf->len = len;
 
+    /* Save xfrag reference in packet  */
+    xf->len = len;
     pkt->xf_first = xf;
     pkt->len = len;
 
-    ret = descsock_ifoutput(pkt);
+    err = descsock_ifoutput(pkt);
 
-    return (ret == ERR_OK)? 1: -1;
+    return (err == ERR_OK)? SUCCESS : FAILED;
+
+err_out:
+    return err;
 }
-
+/*
+ * XXX: Return number of bytes writen
+ */
 int
 descsock_recv(void *buf, UINT32 len, int flag)
 {
@@ -272,7 +313,7 @@ descsock_recv(void *buf, UINT32 len, int flag)
     while(!FIXEDQ_EMPTY(sc->rx_queue.rx_pkt_queue)) {
         pkt = FIXEDQ_HEAD(sc->rx_queue.rx_pkt_queue);
 
-        printf("received pkt %p with buf %p %lld len %d\n",
+        DESCSOCK_DEBUGF("received pkt %p with buf %p %lld len %d\n",
             pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
 
         memcpy(buf, pkt->xf_first->data, pkt->len);
@@ -285,7 +326,7 @@ descsock_recv(void *buf, UINT32 len, int flag)
         FIXEDQ_REMOVE(sc->rx_queue.rx_pkt_queue);
     }
 
-    return 1;
+    return SUCCESS;
 }
 
 err_t
@@ -293,6 +334,9 @@ descsock_teardown()
 {
     free(hudconf.hugepages_path);
     free(hudconf.mastersocket);
+
+    xfrag_pool_free();
+    packet_pool_free();
 
     free(sc);
 
@@ -340,7 +384,7 @@ descsock_poll(int mask) {
             /* XXX: if flushed_bytes is -1 then we encountered an error writing to socket */
 
             flushed_descriptors = tx_send_advance_consumer(tier);
-             printf("flushed bytes %d\n", flushed_descriptors);
+             DESCSOCK_DEBUGF("flushed bytes %d\n", flushed_descriptors);
             if(flushed_descriptors == -1) {
                 DESCSOCK_LOG("Failed to write to socket\n");
             }
@@ -408,12 +452,12 @@ descsock_poll(int mask) {
 
             /* add pkt to rx ready to consume queueu */
             if(FIXEDQ_FULL(sc->rx_queue.rx_pkt_queue)) {
-                printf("Rx queue is full dropping rx packet\n");
+                DESCSOCK_LOG("Rx queue is full dropping rx packet\n");
                 sc->stats.pkt_drop++;
                 goto out;
             }
 
-            printf("Enqueueing Rx packet %p with buf %p %lld len %d\n",
+            DESCSOCK_DEBUGF("Enqueueing Rx packet %p with buf %p %lld len %d\n",
                  pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
 
             /*
@@ -671,7 +715,7 @@ clean_tx_completions( UINT16 tier)
     /* advance consumer index by freeing sent packets */
     freed = tx_receive_adanvace_consumer(tier, avail_to_clean);
 
-    printf("Freed packets %d\n", freed);
+    DESCSOCK_DEBUGF("Freed packets %d\n", freed);
 }
 
 /*
@@ -709,7 +753,7 @@ tx_receive_adanvace_consumer(UINT32 tier, int avail_to_clean)
         FIXEDQ_REMOVE(sc->tx_queue.completions[tier]);
 
         if(tx_clean_ctx->pkt != NULL) {
-            printf("Cleaning tx send buf %p\n", tx_clean_ctx->xf->data);
+            DESCSOCK_DEBUGF("Cleaning tx send buf %p\n", tx_clean_ctx->xf->data);
 
             xfrag_free(tx_clean_ctx->xf, false);
 
@@ -1008,7 +1052,7 @@ flush_bytes_to_socket(UINT32 tx, int qos)
 
     /* Make the socket I/O call */
     advance = descsock_writev_file(fd, iov, (1 + ring_wrap));
-    //printf("Writen bytes %d\n", advance);
+    //DESCSOCK_DEBUGF("Writen bytes %d\n", advance);
 
     if (advance > 0) {
         /* We wrote data out to the socket, update consumer idx and return number of bytes writen */
@@ -1083,7 +1127,7 @@ refill_inbound_fifo_from_socket(UINT32 tx, UINT32 qos)
 
     /* Make the socket I/O call */
     advance = descsock_readv_file(fd, iov, (1 + ring_wrap));
-    //printf("read bytes %d\n", advance);
+    //DESCSOCK_DEBUGF("read bytes %d\n", advance);
     if (advance > 0) {
         /* We read bytes from socket, advance the producer idx */
         *ptr_prod = (prod_idx + advance) & ring_mask;

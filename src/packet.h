@@ -5,6 +5,7 @@
 
 #include "types.h"
 #include "xfrag_mem.h"
+#include "err.h"
 
 struct packet {
     SLIST_ENTRY(packet) next;
@@ -16,7 +17,7 @@ struct packet {
     /* Add more fields as we go  */
 };
 
-void packet_init_pool(int num_of_pkts);
+err_t packet_init_pool(int num_of_pkts);
 void packet_pool_free();
 BOOL packet_check(struct packet *pkt);
 

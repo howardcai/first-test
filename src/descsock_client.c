@@ -23,14 +23,12 @@
 #include <string.h>
 #include <stdbool.h>
 
+#include "common.h"
 #include "descsock.h"
 #include "sys.h"
 #include "sys.h"
 #include "xfrag_mem.h"
-
 #include "descsock_client.h"
-
-#define FAILED -1
 
 static struct client_config {
     char *dma_shmem_path;
@@ -42,20 +40,31 @@ static struct client_config {
 
 static int init_descosck_lib(void);
 
+/*
+ * Start library
+ * Returns 1 on success, -1 on failure
+ */
 static int
 init_descosck_lib() {
     int ret;
 
+    /* Initialize descsock library */
     ret = descsock_init(0, config.dma_shmem_path, config.master_socket_path, config.svc_id);
     if(ret == FAILED) {
         printf("Failed to init descsock framework\n");
-        exit(EXIT_FAILURE);
+        return FAILED;
     }
 
     return ret;
 }
 
-/* XXX: Implemented multi-thread */
+/*
+ * XXX: Implemented multi-thread
+ *
+ * Open descsock library with a client_spec config
+ * Returns 1 on success, -1 on failure
+ */
+
 int
 descsock_client_open(descsock_client_spec_t * const spec, const int flags)
 {
@@ -71,17 +80,19 @@ descsock_client_open(descsock_client_spec_t * const spec, const int flags)
     //ret = pthread_create(&thread_id, NULL, &init_descosck_lib, NULL);
     ret = init_descosck_lib();
     if(ret == FAILED) {
-        perror("starting thread ");
-        exit(EXIT_FAILURE);
+        printf("Failed to initialize descsock library\n");
+        return FAILED;
     }
 
     //pthread_join(thread_id, NULL);
-    sleep(3);
-
 
     return ret;
 }
 
+/*
+ * Poll Rx unix domain sockets for outstanding return descriptors
+ * Returns 1 if Rx packets are available, 0 if none
+ */
 int
 descsock_client_poll(int event_mask)
 {
@@ -96,7 +107,10 @@ descsock_client_poll(int event_mask)
     return 0;
 }
 
-/* Send a buf to the descsock framework */
+/*
+ * Send a buf
+ * Returns the number of bytes writen, -1 on failure
+ */
 ssize_t
 descsock_client_send(void *buf, const uint64_t len, const int flags)
 {
@@ -106,18 +120,24 @@ descsock_client_send(void *buf, const uint64_t len, const int flags)
     return sent;
 }
 
+/*
+ * Receive a packet into buf
+ * Returns number of bytes read, -1 on failure
+ */
 ssize_t
 descsock_client_recv(void *buf, const uint64_t len, const int flags)
 {
     return descsock_recv(buf, DESCSOCK_BUF_SIZE, 0);
 }
 
+/* Future implementation */
 int
 descsock_client_cntl(const int cmd, ...)
 {
     return 0;
 }
 
+/* Close descsock framework, free memory */
 int
 descsock_client_close(void)
 {

@@ -11,13 +11,8 @@
 
 #include <stdbool.h>
 
-#define DESCSOCK_DEBUG_PRINT 0
-#define DESCSOCK_DEBUGF(fmt, rest...) ({if(DESCSOCK_DEBUG_PRINT) { printf("%s():%d " fmt "\n", __FUNCTION__, __LINE__, ##rest); }})
-#define DESCSOCK_LOG(fmt, rest...) printf("descsock: " fmt "\n", ##rest);
-
-
 #define GLOBALSET
-#define BUF_SIZE                2048
+
 /*
  * TMM types
  */
@@ -54,39 +49,5 @@ typedef unsigned short vlan_t;
  */
 
 typedef int file_t;
-
-struct tmm_memory {
-    char name[256];
-    void *base;
-    UINT32 length;
-};
-
-typedef struct {
-    char name[256];
-} f5dev_t;
-
-typedef struct {
-    char name[256];
-}f5device_t;
-
-struct dev_poll_param {
-    char name[256];
-};
-
-struct ifnet {
-    char name[256];
-};
-
-struct client_rx_buf {
-    void *base;
-    UINT32 len;
-    UINT64 idx;
-};
-
-typedef struct {
-    void *base;
-    UINT32 len;
-    UINT64 idx;
-} client_tx_buf_t;
 
 #endif /* _TYPES_H */

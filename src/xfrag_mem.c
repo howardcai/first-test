@@ -5,6 +5,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include "common.h"
 #include "types.h"
 #include "sys.h"
 #include "xfrag_mem.h"
@@ -30,7 +31,8 @@ xfrag_ussage_stats_t xfrag_stats = {
     .xfrag_rx_avail = 0,
 };
 
-void xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
+err_t
+xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
 {
     int i;
     size_t sz = num_of_bufs * XFRAG_SIZE;
@@ -42,31 +44,31 @@ void xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
     TAILQ_INIT(&xfrag_pool_headtx);
 
     xf_base_addr = malloc(sizeof(struct xfrag ) * num_of_bufs);
-    //printf("sizeof struct xf %ld\n", sizeof(struct xfrag));
 
     if(xf_base_addr == NULL) {
-        printf("Failed to alloc xfrag base addr\n");
-        exit(EXIT_FAILURE);
+        DESCSOCK_LOG("Failed to alloc xfrag base addr\n");
+        goto err_out;
     }
 
     for(i = 0; i < num_of_bufs; i++) {
 
         struct xfrag *xf = (struct xfrag *)(xf_base_addr + offset);
         if(xf == NULL){
-            printf("Failed to malloc rx_xfrag_t\n");
-            exit(EXIT_FAILURE);
+            DESCSOCK_LOG("Failed to malloc rx_xfrag_t\n");
+            goto err_out;
         }
+
         xf->idx = 0;
         xf->len = 0;
         //xf->next = NULL;
         xf->magic = 0;
-        //memset(xf, 0, sizeof(struct xfrag));
+
         void *rawbytes = rawbase + (XFRAG_SIZE * i);
         assert((UINT64)rawbytes + XFRAG_SIZE <= (UINT64)rawbase + sz);
         xf->data = rawbytes;
 
         //xxx: add stats here
-        /* Hafl of bufs are used for as Rx DMA bufs and the other half for Tx DMA bufs */
+        /* Half of bufs are used as Rx DMA bufs and the other half for Tx DMA bufs */
         if(count < (num_of_bufs / 2)) {
             TAILQ_INSERT_TAIL(&xfrag_pool_head, xf, next);
         }
@@ -74,17 +76,23 @@ void xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
             TAILQ_INSERT_TAIL(&xfrag_pool_headtx, xf, next);
         }
 
-        //printf("xfrag in pool %lld with xdata-> %p %lld\n", (UINT64)xf, xf->data, (UINT64)xf->data);
+        DESCSOCK_DEBUGF("xfrag in pool %lld with xdata-> %p %lld\n", (UINT64)xf, xf->data, (UINT64)xf->data);
 
         offset += sizeof(struct xfrag);
         count++;
     }
+
+    return ERR_OK;
+
+err_out:
+    return ERR_MEM;
+
 }
 
 /*
  * Allocates a xfrag from the queue, if rx == true we need a xfrag for Rx packets
  * else we need an xfrag for Tx packet
- * Returns an xfrag object
+ * Returns an xfrag object on success, NULL on failure
  */
 struct xfrag * xfrag_alloc(bool rx)
 {
@@ -111,7 +119,8 @@ struct xfrag * xfrag_alloc(bool rx)
         xf->len = 0;
         xf->idx = -1;
     }
-    //printf("Allocated xfrag with base %p %lld\n", xf->data, (UINT64)xf->data);
+
+    DESCSOCK_DEBUGF("Allocated xfrag with base %p %lld\n", xf->data, (UINT64)xf->data);
 
     return xf;
 }
@@ -119,7 +128,8 @@ struct xfrag * xfrag_alloc(bool rx)
 /* Frees an xfrag object, gets put back into the rx or tx quees */
 void xfrag_free(struct xfrag *xf, bool rx)
 {
-    printf("freeing xfrag with base %p %lld\n", xf->data, (UINT64)xf->data);
+    DESCSOCK_DEBUGF("freeing xfrag with base %p %lld\n", xf->data, (UINT64)xf->data);
+
     if(rx) {
         TAILQ_INSERT_TAIL(&xfrag_pool_head, xf, next);
     }
@@ -139,10 +149,10 @@ void xfrag_pool_free(void)
 
 void print_xfrag_pool(void)
 {
-    printf("xfrag pool dump\n");
+    DESCSOCK_LOG("xfrag pool dump\n");
 
     struct xfrag *xf;
     TAILQ_FOREACH(xf, &xfrag_pool_head, next) {
-        printf("xfrag->len %d xfrag->data %p %lld\n", xf->len, xf->data, (UINT64)xf->data);
+        DESCSOCK_LOG("xfrag->len %d xfrag->data %p %lld\n", xf->len, xf->data, (UINT64)xf->data);
     }
 }

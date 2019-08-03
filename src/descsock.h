@@ -34,14 +34,18 @@
 #define DESCSOCK_QOS_FROM_QSEL(_qsel)   ((_qsel) >> 1)
 #define DESCSOCK_PATH_MAX               256
 
-/* TMM dma driver queue metadata */
+/* DMA rings  metadata */
 #define RING_SIZE                           (256) /* XXX make dynamic? */
 #define RING_MASK                           (RING_SIZE - 1)
 #define RING_WRAP(x)                        ((x) & RING_MASK)
+/*
+ * DMA mem the library will allocate Rx, Tx DMA operations
+ */
+#define DESCSOCK_DMA_MEM_SIZE   64
+
+
 #define DESCSOCK_MAX_TX_XFRAGS_PER_PACKET   5
 #define NUM_TIERS                           4
-
-
 #define DESCSOCK_MAX_PER_POLL               32
 #define DESCSOCK_MAX_PER_SEND               64
 
@@ -208,17 +212,6 @@ struct descsock_softc {
     dma_region_t                dma_region;
   };
 
-
-/*
- * device interface functions
- */
-BOOL descsock_probe(f5dev_t dev);
-f5device_t *descsock_attach(f5dev_t dev);
-
-void descsock_detach(f5device_t *devp);
-BOOL descsock_poll(int event_mask);
-
-
 /*
  * ifnet interface functions
  */
@@ -228,6 +221,7 @@ err_t descsock_teardown(void);
 /*
  * library client API
  */
+BOOL descsock_poll(int event_mask);
 int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id);
 int descsock_send(void *handle, UINT32 len);
 int descsock_recv(void *buf, UINT32 len, int flag);
