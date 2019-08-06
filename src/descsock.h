@@ -194,6 +194,12 @@ typedef struct {
     UINT64  len;
 } dma_region_t;
 
+typedef enum {
+    DESCSOCK_UP,
+    DESSOCK_DOWN,
+    DESCSOCK_FAILED,
+}descsock_state_t;
+
 /* Device instance structure. */
 struct descsock_softc {
 
@@ -201,6 +207,7 @@ struct descsock_softc {
     int                         sock_fd[DESCSOCK_MAX_QOS_TIERS * 2];
     int                         n_qos;
     int                         sep;
+    descsock_state_t            state;
     UINT32                      timer_ticks;
     UINT64                      polls, idle;
     descsock_stats_t            stats;

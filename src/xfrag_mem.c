@@ -21,7 +21,7 @@
 
 static TAILQ_HEAD(, xfrag) xfrag_pool_head;
 static TAILQ_HEAD(, xfrag) xfrag_pool_headtx;
-void *xf_base_addr = NULL;
+static void *xf_base_addr = NULL;
 
 
 xfrag_ussage_stats_t xfrag_stats = {
@@ -142,7 +142,10 @@ void xfrag_free(struct xfrag *xf, bool rx)
 void xfrag_pool_free(void)
 {
     if(xf_base_addr != NULL) {
+
         free(xf_base_addr);
+
+        xf_base_addr = NULL;
     }
 }
 

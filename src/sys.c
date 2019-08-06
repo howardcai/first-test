@@ -253,9 +253,9 @@ descsock_map_dmaregion(char * path, UINT64 size)
     unlink(path);
 
 
-    printf("allocated 2k pages %d\n", (UINT32)(size / PAGE_SIZE));
-    printf("dma seg size %lld\n", size);
-    printf("path %s\n", path);
+    DESCSOCK_LOG("allocated 4k pages %d\n", (UINT32)(size / PAGE_SIZE));
+    DESCSOCK_LOG("dma seg size %lld\n", size);
+    DESCSOCK_LOG("path %s\n", path);
 
     fd = open(path, O_CREAT | O_RDWR, S_IRWXU);
     if(fd == -1) {
@@ -377,15 +377,15 @@ descsock_recv_socket_conns(int fd, int * socks)
     /* recieve vector of messages. single recieve for efficiency */
     int num_recv = recvmmsg(fd, msgvec, vec_len, flags, timeout);
 
-    printf("num_recv: %d\n", num_recv);
+    DESCSOCK_LOG("num_recv: %d\n", num_recv);
 
     if (num_recv < num_socks) {
-        printf("not all fds recieved\n");
+        DESCSOCK_LOG("not all fds recieved\n");
         if (num_recv < 0) {
             perror("recvmmsg failed");
         }
         else {
-            printf("recvmmsg didn't receive all of them, missed %d msgs\n", (int)num_socks - num_recv);
+            DESCSOCK_LOG("recvmmsg didn't receive all of them, missed %d msgs\n", (int)num_socks - num_recv);
         }
         /* Error getting all Rx, Tx file descriptors */
         return ERR_CONN;

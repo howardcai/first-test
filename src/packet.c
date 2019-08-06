@@ -16,7 +16,7 @@
  * Packet mem pool is serviced though a simple linkedlist stack
  */
 static SLIST_HEAD(, packet)     pkt_stack_head;
-void *pkts_base_addr = NULL;
+static void *pkts_base_addr = NULL;
 
 
 /* Allocate a block of memory and build packet objects, and add to pkt stack */
@@ -29,7 +29,7 @@ packet_init_pool(int num_of_pkts)
 
     pkts_base_addr = malloc(sizeof(struct packet) * num_of_pkts);
     if(pkts_base_addr == NULL) {
-        DESCSOCK_LOG("pkts base addre retunred NULL on malloc\n");
+        DESCSOCK_LOG("pkts base address returned NULL on malloc\n");
         goto err_out;
     }
 
@@ -53,6 +53,7 @@ void packet_pool_free()
 {
     if(pkts_base_addr != NULL) {
         free(pkts_base_addr);
+        pkts_base_addr = NULL;
     }
 }
 
@@ -66,8 +67,9 @@ struct packet* packet_alloc()
     struct packet *pkt = SLIST_FIRST(&pkt_stack_head);
     if(pkt == NULL) {
         DESCSOCK_LOG("No packets in pool\n");
-        exit(EXIT_FAILURE);
+        return NULL;
     }
+    /* Pop stack */
     SLIST_REMOVE_HEAD(&pkt_stack_head, next);
 
     return pkt;

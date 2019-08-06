@@ -157,6 +157,8 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
         DESCSOCK_LOG("Error sending producer descriptors on init");
     }
 
+    sc->state = DESCSOCK_UP;
+
     return ret;
 
 err_out:
@@ -263,6 +265,10 @@ err_out:
 // XXX: Return the number of bytes writen
 int descsock_send(void *buf, UINT32 len)
 {
+    if(sc == NULL || sc->state != DESCSOCK_UP) {
+        DESCSOCK_LOG("Descsock library has not been initialized\n");
+        return FAILED;
+    }
     err_t err = ERR_OK;
     struct xfrag *xf = NULL;
     struct packet *pkt = NULL;
@@ -272,14 +278,14 @@ int descsock_send(void *buf, UINT32 len)
 
     pkt = packet_alloc();
     if(pkt == NULL) {
-        DESCSOCK_LOG("Failed to alloc packet\n");
+        DESCSOCK_DEBUGF("Failed to alloc packet\n");
         err = ERR_MEM;
         goto err_out;
     }
 
     xf = xfrag_alloc(rx);
     if(xf == NULL) {
-        DESCSOCK_LOG("Error xfrag_allo() retunred null\n");
+        DESCSOCK_DEBUGF("Error xfrag_alloc() retunred null\n");
         err = ERR_MEM;
         goto err_out;
     }
@@ -300,7 +306,12 @@ int descsock_send(void *buf, UINT32 len)
 
     err = descsock_ifoutput(pkt);
 
-    return (err == ERR_OK)? SUCCESS : FAILED;
+    if(err != ERR_OK) {
+        goto err_out;
+    }
+
+
+    return SUCCESS;
 
 err_out:
     if(pkt != NULL) {
@@ -310,7 +321,7 @@ err_out:
         xfrag_free(xf, rx);
     }
 
-    return err;
+    return FAILED;
 }
 /*
  * XXX: Return number of bytes writen
@@ -516,12 +527,15 @@ descsock_ifoutput(struct packet *pkt)
 
     err = descsock_tx_single_desc_pkt(pkt, tier);
 
-    sc->stats.pkt_tx += (err == ERR_OK)? 1 : 0;
-
-    if(err == ERR_OK) {
-        DESCSOCK_DEBUGF("sendring cons:%d prod:%d", tx_out_fifo->cons_idx, tx_out_fifo->prod_idx);
-        //packet_set_flag(pkt, PACKET_FLAG_LOCKED);
+    if(err != ERR_OK) {
+        goto out;
     }
+
+    sc->stats.pkt_tx += 1;
+    sc->stats.tx_descs += 1;
+
+    DESCSOCK_DEBUGF("sendring cons:%d prod:%d", tx_out_fifo->cons_idx, tx_out_fifo->prod_idx);
+
 
 out:
     return err;
@@ -534,6 +548,7 @@ descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
 
     UINT16 vlan_tag = 0;
     err_t err = ERR_OK;
+    int sent = 0;
     tx_completions_ctx_t *clean_ctx;
     laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
     laden_buf_desc_t *send_desc = (laden_buf_desc_t *)&tx_out_fifo->c[tx_out_fifo->prod_idx];
@@ -577,7 +592,11 @@ descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
     tx_send_advance_producer(tier);
 
     /* Send packets here */
-    tx_send_advance_consumer(0);
+    sent = tx_send_advance_consumer(tier);
+    if(sent == 0 || sent == -1) {
+        DESCSOCK_DEBUGF("Failed to send packet\n");
+        return ERR_MEM;
+    }
 
     return ERR_OK;
 }

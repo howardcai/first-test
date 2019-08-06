@@ -35,6 +35,4 @@ struct packet* packet_alloc(void);
 
 //void packet_data_dma(struct packet *pkt, struct xfrag_item *xf, UINT32 len);
 
-struct packet;
-
 #endif
