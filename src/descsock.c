@@ -269,6 +269,7 @@ int descsock_send(void *buf, UINT32 len)
         DESCSOCK_LOG("Descsock library has not been initialized\n");
         return FAILED;
     }
+
     err_t err = ERR_OK;
     struct xfrag *xf = NULL;
     struct packet *pkt = NULL;
