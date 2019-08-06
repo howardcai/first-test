@@ -9,6 +9,7 @@
 #ifndef _HUDCONF_H
 #define _HUDCONF_H
 
+#include "common.h"
 #include "types.h"
 
 struct hudconf {
@@ -17,8 +18,8 @@ struct hudconf {
     BOOL            physmem;
     BOOL            virtmem;
     BOOL            use_tap;
-    char            *hugepages_path;
-    char            *mastersocket;
+    char            hugepages_path[DESCSOCK_PATHLEN];
+    char            mastersocket[DESCSOCK_PATHLEN];
     void            *dma_seg_base;
     UINT64          dma_seg_size;
     UINT32          num_seps;

@@ -11,6 +11,12 @@
 #define FAILED      -1
 #define SUCCESS     1
 #define BUF_SIZE    2048
+/*
+ * Maximum length of a file path parameter or field used with this library.
+ */
+#define DESCSOCK_PATHLEN    512
+#define DESCSOCK_BUF_SIZE   2048
+
 
 #define DESCSOCK_DEBUG_PRINT 0
 #define DESCSOCK_DEBUGF(fmt, rest...) ({if(DESCSOCK_DEBUG_PRINT) { printf("%s():%d " fmt "\n", __FUNCTION__, __LINE__, ##rest); }})

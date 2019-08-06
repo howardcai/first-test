@@ -17,11 +17,8 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-/*
- * Maximum length of a file path parameter or field used with this library.
- */
-#define DESCSOCK_PATHLEN    512
-#define DESCSOCK_BUF_SIZE   2048
+#include "common.h"
+
 
 /*
  * ======================= GENERAL USAGE ========================

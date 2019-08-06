@@ -81,11 +81,13 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
                 break;
 
             case FLAG_USE_HUGEPAGES:
-                hudconf.hugepages_path = strdup(optarg);
+               // hudconf.hugepages_path = strdup(optarg);
+                strcpy(hudconf.hugepages_path, optarg);
                 // XXX: Validate hugepages path exists
                 break;
             case FLAG_MASTER_SOCKET:
-                hudconf.mastersocket = strdup(optarg);
+                //hudconf.mastersocket = strdup(optarg);
+                strcpy(hudconf.mastersocket, optarg);
                 break;
                 // XXX: Validate master socket exists
             case FLAG_QUEUE_SIZE:

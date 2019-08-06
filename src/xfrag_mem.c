@@ -21,7 +21,7 @@
 
 static TAILQ_HEAD(, xfrag) xfrag_pool_head;
 static TAILQ_HEAD(, xfrag) xfrag_pool_headtx;
-void *xf_base_addr;
+void *xf_base_addr = NULL;
 
 
 xfrag_ussage_stats_t xfrag_stats = {

@@ -16,7 +16,7 @@
  * Packet mem pool is serviced though a simple linkedlist stack
  */
 static SLIST_HEAD(, packet)     pkt_stack_head;
-void *pkts_base_addr;
+void *pkts_base_addr = NULL;
 
 
 /* Allocate a block of memory and build packet objects, and add to pkt stack */
@@ -24,6 +24,7 @@ err_t
 packet_init_pool(int num_of_pkts)
 {
     int i;
+    SLIST_INIT(&pkt_stack_head);
     UINT64 offset = 0;
 
     pkts_base_addr = malloc(sizeof(struct packet) * num_of_pkts);

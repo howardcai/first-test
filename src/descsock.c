@@ -50,7 +50,7 @@ static int descsock_count_pkts_from_fifo(laden_desc_fifo_t *fifo, UINT32 avail, 
 static inline int rx_receive_advance_producer(UINT32 tier);
 static inline void rx_receive_advance_consumer(UINT32 tier);
 static inline int tx_receive_advance_producer(UINT32 tier);
-static inline int tx_receive_adanvace_consumer(UINT32 tier, int max);
+static inline int tx_receive_advance_consumer(UINT32 tier, int max);
 
 /*
  * Tx
@@ -91,7 +91,7 @@ int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
 /*
  * Main structure used as core of the framework
  */
-struct descsock_softc *sc;
+struct descsock_softc *sc  = NULL;
 
 /*
  * Start descsock framewor, Allocate DMA memory, send config message to DMAA
@@ -105,8 +105,8 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
     err_t err = ERR_OK;
     int tier = 0;
 
-    hudconf.hugepages_path = strdup(dma_shmem_path);
-    hudconf.mastersocket = strdup(mastersocket);
+    strcpy(hudconf.hugepages_path, dma_shmem_path);
+    strcpy(hudconf.mastersocket, mastersocket);
     hudconf.svc_ids = svc_id;
     hudconf.memsize = DESCSOCK_DMA_MEM_SIZE;
     hudconf.num_seps = 1;
@@ -161,8 +161,6 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
 
 err_out:
     if(sc != NULL) {
-        free(hudconf.hugepages_path);
-        free( hudconf.mastersocket);
         free(sc);
     }
 
@@ -266,8 +264,8 @@ err_out:
 int descsock_send(void *buf, UINT32 len)
 {
     err_t err = ERR_OK;
-    struct xfrag *xf;
-    struct packet *pkt;
+    struct xfrag *xf = NULL;
+    struct packet *pkt = NULL;
     bool rx = false;
 
     //XXX: Validate buf from client
@@ -286,6 +284,12 @@ int descsock_send(void *buf, UINT32 len)
         goto err_out;
     }
 
+    /*
+     * XXX: Need to sanity check that len is not greater than the amount
+     * of memory that is available in xf->data (XFRAG_SIZE?) and return an
+     * error if so (along with returning xfrag and packet to their free lists)
+     */
+
     /* Copy packet data from user to a send buf to send in descriptor */
     memcpy(xf->data, buf, len);
 
@@ -299,6 +303,13 @@ int descsock_send(void *buf, UINT32 len)
     return (err == ERR_OK)? SUCCESS : FAILED;
 
 err_out:
+    if(pkt != NULL) {
+        packet_free(pkt);
+    }
+    if(xf != NULL) {
+        xfrag_free(xf, rx);
+    }
+
     return err;
 }
 /*
@@ -332,8 +343,6 @@ descsock_recv(void *buf, UINT32 len, int flag)
 err_t
 descsock_teardown()
 {
-    free(hudconf.hugepages_path);
-    free(hudconf.mastersocket);
 
     xfrag_pool_free();
     packet_pool_free();
@@ -499,9 +508,6 @@ descsock_ifoutput(struct packet *pkt)
 
     laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
 
-    /*
-     * If send_ring is half full, flush it
-     */
     bytes_avail = laden_desc_fifo_avail(tx_out_fifo);
     if(bytes_avail >= (DESCSOCK_MAX_PER_SEND * LADEN_DESC_LEN)) {
         err = ERR_BUF;
@@ -630,7 +636,8 @@ descsock_config_exchange(char * dmapath)
     err = descsock_recv_socket_conns(events[0].data.fd, sc->sock_fd);
     if(err != ERR_OK) {
         DESCSOCK_LOG("Failed to receive Rx, Tx sockets");
-        exit(-1);
+        err = ERR_CONN;
+        goto out;
     }
 
     /* Partition received sockets to our RX, TX arrays */
@@ -713,7 +720,7 @@ clean_tx_completions( UINT16 tier)
     }
 
     /* advance consumer index by freeing sent packets */
-    freed = tx_receive_adanvace_consumer(tier, avail_to_clean);
+    freed = tx_receive_advance_consumer(tier, avail_to_clean);
 
     DESCSOCK_DEBUGF("Freed packets %d\n", freed);
 }
@@ -738,7 +745,7 @@ tx_receive_advance_producer(UINT32 tier)
  * Returns the number of recycled packets
  */
 inline int
-tx_receive_adanvace_consumer(UINT32 tier, int avail_to_clean)
+tx_receive_advance_consumer(UINT32 tier, int avail_to_clean)
 {
     int i = 0;
     tx_completions_ctx_t *tx_clean_ctx;
