@@ -62,7 +62,6 @@ static inline int flush_bytes_to_socket(UINT32 tx, int qos);
 static inline err_t tx_send_advance_producer(UINT32 tier);
 static inline int tx_send_advance_consumer(UINT32 tier);
 static err_t descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier);
-//err_t descsock_tx_multi_desc_pkt(struct packet *pkt, UINT32 tier);
 static inline int rx_send_advance_producer(UINT16 tier, int max);
 static inline int rx_send_advance_consumer(int tier);
 static inline void clean_tx_completions(UINT16 tier);
@@ -105,16 +104,16 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
     err_t err = ERR_OK;
     int tier = 0;
 
-    strcpy(hudconf.hugepages_path, dma_shmem_path);
-    strcpy(hudconf.mastersocket, mastersocket);
-    hudconf.svc_ids = svc_id;
-    hudconf.memsize = DESCSOCK_DMA_MEM_SIZE;
-    hudconf.num_seps = 1;
+    strcpy(descsock_conf.hugepages_path, dma_shmem_path);
+    strcpy(descsock_conf.mastersocket, mastersocket);
+    descsock_conf.svc_ids = svc_id;
+    descsock_conf.memsize = DESCSOCK_DMA_MEM_SIZE;
+    descsock_conf.num_seps = 1;
     /* size is in mb so we multiple to get mb */
-    hudconf.dma_seg_size = (hudconf.memsize * 1024 * 1024);
+    descsock_conf.dma_seg_size = (descsock_conf.memsize * 1024 * 1024);
     /* align for unix page size */
-    DESCSOCK_LOG("Total mem allocated for descsock framework %lld\n", hudconf.dma_seg_size);
-    hudconf.dma_seg_size = ((hudconf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
+    DESCSOCK_LOG("Total mem allocated for descsock framework %lld\n", descsock_conf.dma_seg_size);
+    descsock_conf.dma_seg_size = ((descsock_conf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
 
     sc = malloc(sizeof(struct descsock_softc));
     if(sc == NULL) {
@@ -181,11 +180,11 @@ descsock_init_conn()
     int i;
 
     /* Concatenate descsock.000 to path string to create hugepages path mount */
-    snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000", hudconf.hugepages_path);
+    snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000", descsock_conf.hugepages_path);
 
     /* Save hugepages mount info  */
     snprintf(sc->dma_region.path, DESCSOCK_PATH_MAX, "%s", msg);
-    sc->dma_region.len = hudconf.dma_seg_size;
+    sc->dma_region.len = descsock_conf.dma_seg_size;
 
     /* try mmaping the passed in hugepages path */
     sc->dma_region.base = descsock_map_dmaregion(sc->dma_region.path, sc->dma_region.len);
@@ -456,20 +455,14 @@ descsock_poll(int mask) {
             /* XXX: figure out the correct packet len */
             pkt->len = xf->len;
 
-            /* DMA buf data into packet */
-            //packet_data_dma(pkt, xf, desc->len);
-
             /* Adavance consumer index on return ring */
             rx_receive_advance_consumer(tier);
-           // FIXEDQ_REMOVE(sc->rx_queue.complete_pkt[tier]);
+
             /* XXX: add support to Rx a multi-desc packet */
             if(!desc->eop) {
                 DESCSOCK_LOG("Jumbo frame are not accepted yet");
                 exit(-1);
             }
-
-            /* XXX: Remove later */
-           // descsock_print_buf(pkt->xf_first->data, pkt->len);
 
             /* add pkt to rx ready to consume queueu */
             if(FIXEDQ_FULL(sc->rx_queue.rx_pkt_queue)) {
@@ -516,7 +509,6 @@ descsock_ifoutput(struct packet *pkt)
 
     /* for now set tier to 0 */
     tier = 0;
-    //struct descsock_softc *sc = containerof(struct descsock_softc, ifnet, ifp);
 
     laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
 
@@ -615,10 +607,10 @@ descsock_config_exchange(char * dmapath)
 
     DESCSOCK_DEBUGF("Sending message to dmaa %s", dmapath);
 
-    n = descsock_socket_write(sc->master_socket_fd, dmapath, 256);
+    n = descsock_socket_write(sc->master_socket_fd, dmapath, DESCSOCK_PATHLEN);
     DESCSOCK_DEBUGF("bytes written %d\n", n);
     if(n < 0 ) {
-        //DESCSOCK_DEBUGF("Error writing to master socket config_exchange()%s");
+        DESCSOCK_DEBUGF("Error writing to master socket fd %d", sc->master_socket_fd);
         err = ERR_BUF;
         goto out;
     }
@@ -661,7 +653,6 @@ descsock_config_exchange(char * dmapath)
     }
 
     /* Partition received sockets to our RX, TX arrays */
-   // descsock_partition_sockets(sc->sock_fd, sc->rx_queue.socket_fd, sc->tx_sockets);
     descsock_partition_sockets(sc->sock_fd, sc->rx_queue.socket_fd, sc->tx_queue.socket_fd);
     for (i = 0; i < NUM_TIERS; i++) {
         DESCSOCK_LOG("RX: %d", sc->rx_queue.socket_fd[i]);
@@ -971,7 +962,6 @@ descsock_build_rx_slot(UINT32 tier)
     rx_extra_fifo_t *extra_fifo = &sc->rx_queue.pkt_extras[tier];
     rx_extra_t *pkt_extras;
 
-    //xfrag = packet_data_newfrag(&base);
     xfrag = xfrag_alloc(rx);
     if(xfrag == NULL) {
         DESCSOCK_LOG("xfrag returned null\n");
@@ -987,8 +977,7 @@ descsock_build_rx_slot(UINT32 tier)
     pkt_extras = (rx_extra_t *)&extra_fifo->extra[produce_buf_idx];
 
     producer_desc->addr = (UINT64)xfrag->data;
-    producer_desc->len = BUF_SIZE;
-    //ex->frag = xfrag;
+    producer_desc->len = DESCSOCK_BUF_SIZE;
     pkt_extras->xf = xfrag;
     pkt_extras->phys = producer_desc->addr;
 
@@ -1079,7 +1068,7 @@ flush_bytes_to_socket(UINT32 tx, int qos)
 
     /* Make the socket I/O call */
     advance = descsock_writev_file(fd, iov, (1 + ring_wrap));
-    //DESCSOCK_DEBUGF("Writen bytes %d\n", advance);
+    DESCSOCK_DEBUGF("Writen bytes %d\n", advance);
 
     if (advance > 0) {
         /* We wrote data out to the socket, update consumer idx and return number of bytes writen */
@@ -1154,7 +1143,7 @@ refill_inbound_fifo_from_socket(UINT32 tx, UINT32 qos)
 
     /* Make the socket I/O call */
     advance = descsock_readv_file(fd, iov, (1 + ring_wrap));
-    //DESCSOCK_DEBUGF("read bytes %d\n", advance);
+    DESCSOCK_DEBUGF("read bytes %d\n", advance);
     if (advance > 0) {
         /* We read bytes from socket, advance the producer idx */
         *ptr_prod = (prod_idx + advance) & ring_mask;

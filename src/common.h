@@ -10,7 +10,7 @@
 
 #define FAILED      -1
 #define SUCCESS     1
-#define BUF_SIZE    2048
+
 /*
  * Maximum length of a file path parameter or field used with this library.
  */

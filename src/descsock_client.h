@@ -17,8 +17,14 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include "common.h"
 
+#define DESCSOCK_CLIENT_FAILED      -1
+#define DESCSOCK_CLIENT_SUCCESS     1
+/*
+ * Maximum length of a file path parameter or field used with this library.
+ */
+#define DESCSOCK_CLIENT_PATHLEN    512
+#define DESCSOCK_CLIENT_BUF_SIZE   2048
 
 /*
  * ======================= GENERAL USAGE ========================
@@ -95,11 +101,6 @@ typedef struct {
  */
 extern volatile const descsock_client_stats_t *descsock_stats;
 
-struct client_buf {
-    void *base;
-    uint32_t len;
-};
-
 typedef struct {
     /*
      * This specifies the path to the shared memory file to be used to buffer
@@ -109,11 +110,11 @@ typedef struct {
      * Preferably, this path resides under a 2MB-pagesize hugetlbfs mount, but
      * must have at least (XXX - TBD) MB of free space.
      */
-    char    dma_shmem_path[DESCSOCK_PATHLEN];
+    char    dma_shmem_path[DESCSOCK_CLIENT_PATHLEN];
     /*
      * This is the path to the DMA Agent or CPProxy master domain socket.
      */
-    char    master_socket_path[DESCSOCK_PATHLEN];
+    char    master_socket_path[DESCSOCK_CLIENT_PATHLEN];
     /*
      * This specifies the Service ID the library will attempt to register
      * this client with.

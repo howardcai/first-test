@@ -12,7 +12,7 @@
 #include "common.h"
 #include "types.h"
 
-struct hudconf {
+struct descsock_conf {
     UINT64          memsize;
     UINT32          queue_size;
     BOOL            physmem;
@@ -26,20 +26,9 @@ struct hudconf {
     UINT32          svc_ids;
 };
 
-struct hudthread {
-    char            *clientciphers;
-    char            *serverciphers;
-    int             tmid;
-    int             cpu;
-    int             node;
-    int             core;
-    UINT32          npgs;
-    UINT16          pgid;
-    UINT16          virtual_id;
-    BOOL            is_worker;
-};
 
-extern struct hudconf hudconf;
+
+extern struct descsock_conf descsock_conf;
 //extern RTTHREAD struct hudthread hudthread;
 
-#endif /* OPTIONS_H */
+#endif /* HUDCONF */

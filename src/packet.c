@@ -48,7 +48,7 @@ err_out:
     return ERR_MEM;
 }
 
-/* Free the previously allocated blob of meme */
+/* Free the previously allocated blob of mem */
 void packet_pool_free()
 {
     if(pkts_base_addr != NULL) {

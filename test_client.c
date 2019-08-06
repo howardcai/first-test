@@ -12,6 +12,13 @@
 #define ETHER_HEADER_LEN    sizeof(struct ether_header)
 #define IP_HEADER_LEN       sizeof(struct iphdr)
 
+/* structure buf used for Tx or Rx  */
+struct client_buf {
+    void *base;
+    uint32_t len;
+};
+
+
 /*
  * Hard coded values used for this client config
  */
@@ -33,8 +40,8 @@ int main(int argc, char *argv[]) {
     descsock_client_spec_t *client = malloc(sizeof(descsock_client_spec_t));
 
     /* set configs for this client */
-    snprintf(client->master_socket_path, DESCSOCK_PATHLEN, "%s", MASTER_SOCKET_PATH);
-    snprintf(client->dma_shmem_path, DESCSOCK_PATHLEN, "%s", HUGEPAGES_PATH);
+    snprintf(client->master_socket_path, DESCSOCK_CLIENT_PATHLEN, "%s", MASTER_SOCKET_PATH);
+    snprintf(client->dma_shmem_path, DESCSOCK_CLIENT_PATHLEN, "%s", HUGEPAGES_PATH);
     client->svc_id = SVC_ID;
 
 
@@ -46,7 +53,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* To receive data into */
-    rxbuf = malloc(DESCSOCK_BUF_SIZE);
+    rxbuf = malloc(DESCSOCK_CLIENT_BUF_SIZE);
     if(rxbuf == NULL) {
         printf("rxbuf returned null on malloc\n");
         exit(EXIT_FAILURE);
@@ -62,7 +69,7 @@ int main(int argc, char *argv[]) {
             /* You got mail! */
             printf("Packets ready to be consumed\n");
 
-            descsock_client_recv(rxbuf, DESCSOCK_BUF_SIZE, 0);
+            descsock_client_recv(rxbuf, DESCSOCK_CLIENT_BUF_SIZE, 0);
            // break;
         }
         else {
@@ -97,7 +104,7 @@ void send_packets(int count)
 
      /*Allocate mem for 10 packets */
     for(i = 0; i < count; i++) {
-        bufs[i].base = malloc(DESCSOCK_BUF_SIZE);
+        bufs[i].base = malloc(DESCSOCK_CLIENT_BUF_SIZE);
         if(bufs[i].base == NULL) {
             printf("FAiled\n");
             exit(EXIT_FAILURE);

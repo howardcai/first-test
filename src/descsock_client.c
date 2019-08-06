@@ -23,12 +23,9 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "common.h"
-#include "descsock.h"
-#include "sys.h"
-#include "sys.h"
-#include "xfrag_mem.h"
 #include "descsock_client.h"
+#include "descsock.h"
+
 
 static struct client_config {
     char *dma_shmem_path;
@@ -50,9 +47,9 @@ init_descosck_lib() {
 
     /* Initialize descsock library */
     ret = descsock_init(0, config.dma_shmem_path, config.master_socket_path, config.svc_id);
-    if(ret == FAILED) {
+    if(ret == DESCSOCK_CLIENT_FAILED) {
         printf("Failed to init descsock framework\n");
-        return FAILED;
+        return DESCSOCK_CLIENT_FAILED;
     }
 
     return ret;
@@ -79,9 +76,9 @@ descsock_client_open(descsock_client_spec_t * const spec, const int flags)
     printf("Initializing descsock library\n");
     //ret = pthread_create(&thread_id, NULL, &init_descosck_lib, NULL);
     ret = init_descosck_lib();
-    if(ret == FAILED) {
+    if(ret == DESCSOCK_CLIENT_FAILED) {
         printf("Failed to initialize descsock library\n");
-        return FAILED;
+        return DESCSOCK_CLIENT_FAILED;
     }
 
     //pthread_join(thread_id, NULL);
@@ -127,7 +124,7 @@ descsock_client_send(void *buf, const uint64_t len, const int flags)
 ssize_t
 descsock_client_recv(void *buf, const uint64_t len, const int flags)
 {
-    return descsock_recv(buf, DESCSOCK_BUF_SIZE, 0);
+    return descsock_recv(buf, DESCSOCK_CLIENT_BUF_SIZE, 0);
 }
 
 /* Future implementation */

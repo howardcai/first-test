@@ -36,6 +36,7 @@ err_t sys_hudconf_init(int sys_argc, char **sys_argv);
 
 /* non-blocking file/socket/pipe/serial I/O setting */
 err_t sys_set_non_blocking(int fd, int non_blocking);
+
 BOOL sys_file_descriptor_exists(int fd);
 
 /*
@@ -80,4 +81,4 @@ char * descsock_get_basename(char *path);
 
 
 
-#endif /* __HUD_SYS_H__ */
+#endif /* SYS_H__ */

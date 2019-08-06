@@ -1,4 +1,18 @@
+/*
+ * $F5Copyright_C:
+ * Copyright (C) F5 Networks, Inc. 2018
+ *
+ * No part of the software may be reproduced or transmitted in any
+ * form or by any means, electronic or mechanical, for any purpose,
+ * without express written permission of F5 Networks, Inc. $
+ *
+ * Descriptor Socket Network Interface Driver
+ *
+ *
+ */
+
 //#include "gnu_source.h"
+
 
 #include "gnu_source.h"
 #include <errno.h>
@@ -23,7 +37,7 @@
 #include "sys.h"
 #include "err.h"
 
-GLOBALSET struct hudconf hudconf = {
+GLOBALSET struct descsock_conf descsock_conf = {
     .memsize = 0,
     .queue_size = 0,
     .physmem = FALSE,
@@ -61,7 +75,7 @@ static const struct option long_options[] =
 extern char *optarg;
 
 err_t
-sys_hudconf_init(int sys_argc, char **sys_argv)
+sys_descsock_conf_init(int sys_argc, char **sys_argv)
 {
     int c;
     int long_idx  = 1;
@@ -71,43 +85,43 @@ sys_hudconf_init(int sys_argc, char **sys_argv)
         //printf("optarg %s\n", optarg);
         switch(c) {
             case FLAG_MEM_SIZE:
-                hudconf.memsize = strtoul(optarg, NULL, 10);
+                descsock_conf.memsize = strtoul(optarg, NULL, 10);
                 /* size is in mb so we multiple to get mb */
-                hudconf.dma_seg_size = (hudconf.memsize * 1024 * 1024);
+                descsock_conf.dma_seg_size = (descsock_conf.memsize * 1024 * 1024);
                 /* align for unix page size */
-                printf("total mem %lld\n", hudconf.dma_seg_size);
-                hudconf.dma_seg_size = ((hudconf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
+                printf("total mem %lld\n", descsock_conf.dma_seg_size);
+                descsock_conf.dma_seg_size = ((descsock_conf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
                 // XXX: validate memsize
                 break;
 
             case FLAG_USE_HUGEPAGES:
-               // hudconf.hugepages_path = strdup(optarg);
-                strcpy(hudconf.hugepages_path, optarg);
+               // descsock_conf.hugepages_path = strdup(optarg);
+                strcpy(descsock_conf.hugepages_path, optarg);
                 // XXX: Validate hugepages path exists
                 break;
             case FLAG_MASTER_SOCKET:
-                //hudconf.mastersocket = strdup(optarg);
-                strcpy(hudconf.mastersocket, optarg);
+                //descsock_conf.mastersocket = strdup(optarg);
+                strcpy(descsock_conf.mastersocket, optarg);
                 break;
                 // XXX: Validate master socket exists
             case FLAG_QUEUE_SIZE:
                 // XXX: Validate queue size is a power of two etc...
-                hudconf.queue_size = strtoul(optarg, NULL, 10);
+                descsock_conf.queue_size = strtoul(optarg, NULL, 10);
 
                 break;
 
             case FLAG_PHYS_MEM:
 
-                hudconf.physmem = TRUE;
+                descsock_conf.physmem = TRUE;
                 break;
 
             case FLAG_VIRT_MEM:
 
-                hudconf.virtmem = TRUE;
+                descsock_conf.virtmem = TRUE;
                 break;
 
             case FLAG_USE_TAP:
-                hudconf.use_tap = TRUE;
+                descsock_conf.use_tap = TRUE;
                 break;
 
             case 'h':
