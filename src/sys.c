@@ -82,14 +82,14 @@ sys_descsock_conf_init(int sys_argc, char **sys_argv)
 
     do {
         c = getopt_long(sys_argc, sys_argv, "", long_options, &long_idx);
-        //printf("optarg %s\n", optarg);
+
         switch(c) {
             case FLAG_MEM_SIZE:
                 descsock_conf.memsize = strtoul(optarg, NULL, 10);
                 /* size is in mb so we multiple to get mb */
                 descsock_conf.dma_seg_size = (descsock_conf.memsize * 1024 * 1024);
                 /* align for unix page size */
-                printf("total mem %lld\n", descsock_conf.dma_seg_size);
+                DESCSOCK_DEBUGF("total mem %lld\n", descsock_conf.dma_seg_size);
                 descsock_conf.dma_seg_size = ((descsock_conf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
                 // XXX: validate memsize
                 break;
@@ -180,16 +180,17 @@ descsock_get_unixsocket(char *path)
     int ret = 1;
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if(fd < 0) {
-        DESCSOCK_LOG("Failed to open mastersocket path %s: %s", path, strerror(errno));
+        DESCSOCK_LOG("Failed create Unix socket");
         return -1;
     }
+
     memset(&skt, 0, sizeof(skt));
     skt.sun_family = AF_UNIX;
     strncpy(skt.sun_path, path, sizeof(skt.sun_path) -1);
 
     ret = connect(fd, (struct sockaddr *)&skt, sizeof(skt));
     if(ret < 0) {
-        perror("connect to skt");
+        DESCSOCK_LOG("Failed to connect to master socket at %s: %s", path, strerror(errno));
         return -1;
     }
 

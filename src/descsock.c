@@ -660,7 +660,7 @@ descsock_config_exchange(char * dmapath)
 
     res = descsock_epoll_ctl(epfd, EPOLL_CTL_ADD, ev.data.fd, &ev);
     if(res < 0){
-        DESCSOCK_DEBUGF("Error descsock_epoll_ctl");
+        DESCSOCK_LOG("Error descsock_epoll_ctl");
         err = ERR_BUF;
         goto out;
     }
@@ -675,7 +675,7 @@ descsock_config_exchange(char * dmapath)
             goto out;
         }
     }
-    DESCSOCK_LOG("number of events: %d", num_fds);
+    DESCSOCK_DEBUGF("number of events: %d", num_fds);
 
     /* receive sockets fds, and add them to the sc->sock_fd array */
     err = descsock_recv_socket_conns(events[0].data.fd, sc->sock_fd);
@@ -1004,10 +1004,6 @@ descsock_build_rx_slot(UINT32 tier)
 
     /* Get an empty buf descriptor */
     producer_desc = (empty_buf_desc_t *)&fifo->c[fifo->prod_idx];
-    if(producer_desc == NULL) {
-        DESCSOCK_LOG("NULL desc\n");
-        exit(-1);
-    }
     pkt_extras = (rx_extra_t *)&extra_fifo->extra[produce_buf_idx];
 
     producer_desc->addr = (UINT64)xfrag->data;
