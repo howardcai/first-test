@@ -208,8 +208,6 @@ descsock_init_conn()
     snprintf(msg, DESCSOCK_PATH_MAX, "path=%s\nbase=%llu\nlength=%llu\nnum_sep=1\npid=1\nsvc_ids=1\n\n",
              sc->dma_region.path, (UINT64)sc->dma_region.base, sc->dma_region.len);
 
-    DESCSOCK_LOG("%s\n", msg);
-
     /* call the master socket here */
     sc->master_socket_fd = descsock_establish_dmaa_conn();
     if(sc->master_socket_fd < 0) {
@@ -294,14 +292,14 @@ int descsock_send(void *buf, UINT32 len)
     //XXX: Validate buf from client
     pkt = packet_alloc();
     if(pkt == NULL) {
-        DESCSOCK_DEBUGF("Failed to alloc packet\n");
+        DESCSOCK_LOG("Failed to alloc packet\n");
         err = ERR_MEM;
         goto err_out;
     }
 
     xf = xfrag_alloc(rx);
     if(xf == NULL) {
-        DESCSOCK_DEBUGF("Error xfrag_alloc() retunred null\n");
+        DESCSOCK_LOG("Error xfrag_alloc() retunred null\n");
         err = ERR_MEM;
         goto err_out;
     }
@@ -447,7 +445,7 @@ descsock_poll(int mask) {
 
             pkt = packet_alloc();
             if(pkt == NULL) {
-                DESCSOCK_LOG("packet_alloc returned NULL\n");
+                DESCSOCK_LOG("Failed to alloc packet\n");
                 goto out;
             }
 

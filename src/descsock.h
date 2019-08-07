@@ -32,7 +32,7 @@
 #define DESCSOCK_QSEL(_tx, _qos)        (((_tx)?1:0) | (((_qos) & (DESCSOCK_MAX_QOS_TIERS - 1)) << 1))
 #define DESCSOCK_TX_FROM_QSEL(_qsel)    ((_qsel) & 1)
 #define DESCSOCK_QOS_FROM_QSEL(_qsel)   ((_qsel) >> 1)
-#define DESCSOCK_PATH_MAX               256
+#define DESCSOCK_PATH_MAX               512
 
 /* DMA rings  metadata */
 #define RING_SIZE                           (256) /* XXX make dynamic? */
