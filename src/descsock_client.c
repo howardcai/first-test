@@ -138,9 +138,6 @@ descsock_client_cntl(const int cmd, ...)
 int
 descsock_client_close(void)
 {
-    free(config.dma_shmem_path);
-    free(config.master_socket_path);
-
     descsock_teardown();
 
     return 0;

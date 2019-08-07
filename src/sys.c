@@ -14,7 +14,7 @@
 //#include "gnu_source.h"
 
 
-#include "gnu_source.h"
+#define _GNU_SOURCE
 #include <errno.h>
 #include <getopt.h>
 #include <stdio.h>
