@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
     while(1) {
 
         /* Poll descsock lib */
-        ret = descsock_client_poll(0);
+        ret = descsock_client_poll(DESCSOCK_POLLIN | DESCSOCK_POLLOUT);
 
         /* XXX: Maybe returned the number of packet polled ? */
         if(ret) {

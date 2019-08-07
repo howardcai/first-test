@@ -232,7 +232,6 @@ descsock_init_conn()
     }
 
     DESCSOCK_LOG("received master socket %d\n", sc->master_socket_fd);
-
     DESCSOCK_LOG("Sending msg to DMAA %s", msg);
 
     /* Send dma region path info to DMA AGENT */
@@ -336,6 +335,7 @@ err_out:
 
     return writen_bytes;
 }
+
 /*
  * XXX: Return number of bytes writen
  */

@@ -10,6 +10,9 @@
  *
  *
  */
+#ifndef _DESCSOCK_H
+#define _DESCSOCK_H
+
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/epoll.h>
@@ -234,5 +237,5 @@ int descsock_send(void *handle, UINT32 len);
 int descsock_recv(void *buf, UINT32 len, int flag);
 
 
-/* Forward declaration.  Actual struct only used in if_descsock.c */
-struct descsock_softc;
+
+#endif

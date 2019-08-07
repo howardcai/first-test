@@ -28,8 +28,8 @@
 
 
 static struct client_config {
-    char *dma_shmem_path;
-    char *master_socket_path;
+    char dma_shmem_path[DESCSOCK_CLIENT_PATHLEN];
+    char master_socket_path[DESCSOCK_CLIENT_PATHLEN];
     int svc_id;
 } config = {
     .svc_id = 0,
@@ -68,8 +68,8 @@ descsock_client_open(descsock_client_spec_t * const spec, const int flags)
     //pthread_t thread_id;
     int ret = 1;
 
-    config.dma_shmem_path = strdup(spec->dma_shmem_path);
-    config.master_socket_path = strdup(spec->master_socket_path);
+    strcpy(config.dma_shmem_path, spec->dma_shmem_path);
+    strcpy(config.master_socket_path, spec->master_socket_path);
     config.svc_id = spec->svc_id;
 
 
