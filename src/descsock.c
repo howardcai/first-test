@@ -18,6 +18,7 @@
 #include <string.h>
 #include <stdbool.h>
 
+#include "descsock_client.h"
 #include "common.h"
 #include "types.h"
 #include "hudconf.h"
@@ -25,14 +26,13 @@
 #include "sys.h"
 #include "packet.h"
 #include "xfrag_mem.h"
-#include "descsock_client.h"
 #include "descsock.h"
 
 
 /*
  * Internal driver functions
  */
-static err_t descsock_ifoutput(struct packet *pkt);
+static err_t descsock_ifoutput(struct packet *pkt, int *writen_bytes);
 static err_t descsock_config_exchange(char * dmapath);
 static int descsock_establish_dmaa_conn(void);
 static void descsock_partition_sockets(int socks[], int rx[], int tx[]);
@@ -61,7 +61,7 @@ static inline int tx_receive_advance_consumer(UINT32 tier, int max);
 static inline int flush_bytes_to_socket(UINT32 tx, int qos);
 static inline err_t tx_send_advance_producer(UINT32 tier);
 static inline int tx_send_advance_consumer(UINT32 tier);
-static err_t descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier);
+static int descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier);
 static inline int rx_send_advance_producer(UINT16 tier, int max);
 static inline int rx_send_advance_consumer(int tier);
 static inline void clean_tx_completions(UINT16 tier);
@@ -91,6 +91,8 @@ int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
  * Main structure used as core of the framework
  */
 struct descsock_softc *sc  = NULL;
+extern volatile descsock_client_stats_t  descsock_client_stats;
+
 
 /*
  * Start descsock framewor, Allocate DMA memory, send config message to DMAA
@@ -141,22 +143,30 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
     FIXEDQ_INIT(sc->rx_queue.rx_pkt_queue);
 
     /* build producer descriptors */
-    DESCSOCK_LOG("Producing xdatas\n");
+    DESCSOCK_DEBUGF("Producing xdatas\n");
     i = rx_send_advance_producer(tier, RING_SIZE - 1);
-    DESCSOCK_LOG("rx_send_advance producer %d\n", i);
+    DESCSOCK_DEBUGF("rx_send_advance producer %d\n", i);
     if(i <= 0) {
         DESCSOCK_LOG("Error pruducing xdatas\n");
     }
 
     /* Send empty producer descriptors */
-    DESCSOCK_LOG("consuming xdatas\n");
+    DESCSOCK_DEBUGF("consuming xdatas\n");
     i = rx_send_advance_consumer(tier);
-    DESCSOCK_LOG("rx_send_advance consumer %d\n", i);
+    DESCSOCK_DEBUGF("rx_send_advance consumer %d\n", i);
     if(i <= 0) {
         DESCSOCK_LOG("Error sending producer descriptors on init");
     }
 
+    /* Set descsock state to up */
     sc->state = DESCSOCK_UP;
+
+    /* Allocate mem for global stats object */
+    // descsock_stats = malloc(sizeof(descsock_client_stats_t));
+
+    // if(descsock_stats == NULL) {
+    //     goto err_out;
+    // }
 
     return ret;
 
@@ -264,18 +274,24 @@ err_out:
 // XXX: Return the number of bytes writen
 int descsock_send(void *buf, UINT32 len)
 {
+    err_t err = ERR_OK;
+    struct xfrag *xf = NULL;
+    struct packet *pkt = NULL;
+    int writen_bytes = 0;
+    bool rx = false;
+
     if(sc == NULL || sc->state != DESCSOCK_UP) {
         DESCSOCK_LOG("Descsock library has not been initialized\n");
         return FAILED;
     }
 
-    err_t err = ERR_OK;
-    struct xfrag *xf = NULL;
-    struct packet *pkt = NULL;
-    bool rx = false;
+    if(len > DESCSOCK_BUF_SIZE) {
+        DESCSOCK_LOG("Jumbo frames are not supported yet");
+        //descsock_client_stats.rx_fc_drops++;
+        return -1;
+    }
 
     //XXX: Validate buf from client
-
     pkt = packet_alloc();
     if(pkt == NULL) {
         DESCSOCK_DEBUGF("Failed to alloc packet\n");
@@ -304,14 +320,13 @@ int descsock_send(void *buf, UINT32 len)
     pkt->xf_first = xf;
     pkt->len = len;
 
-    err = descsock_ifoutput(pkt);
+    err = descsock_ifoutput(pkt, &writen_bytes);
 
     if(err != ERR_OK) {
         goto err_out;
     }
 
-
-    return SUCCESS;
+    return writen_bytes;
 
 err_out:
     if(pkt != NULL) {
@@ -321,7 +336,7 @@ err_out:
         xfrag_free(xf, rx);
     }
 
-    return FAILED;
+    return writen_bytes;
 }
 /*
  * XXX: Return number of bytes writen
@@ -501,7 +516,7 @@ out:
  * TX
  */
 err_t
-descsock_ifoutput(struct packet *pkt)
+descsock_ifoutput(struct packet *pkt, int *writen_bytes)
 {
     err_t err = ERR_OK;
     int bytes_avail;
@@ -518,14 +533,26 @@ descsock_ifoutput(struct packet *pkt)
         goto out;
     }
 
-    err = descsock_tx_single_desc_pkt(pkt, tier);
+    /* flush send descriptor to socket */
+    *writen_bytes = descsock_tx_single_desc_pkt(pkt, tier);
 
-    if(err != ERR_OK) {
+    if(*writen_bytes == 0) {
+        /* EWOULDBLOCK or try again  */
+        err = ERR_WOULDBLOCK;
+        goto out;
+    }
+
+    if(*writen_bytes == -1) {
+        /* Error writing to socket */
+        err = ERR_IO;
         goto out;
     }
 
     sc->stats.pkt_tx += 1;
     sc->stats.tx_descs += 1;
+    // descsock_client_stats.rx_bytes_out += *writen_bytes;
+    // descsock_client_stats.rx_packets_out++;
+    // descsock_client_stats.tx_bytes_out += *writen_bytes;
 
     DESCSOCK_DEBUGF("sendring cons:%d prod:%d", tx_out_fifo->cons_idx, tx_out_fifo->prod_idx);
 
@@ -534,8 +561,12 @@ out:
     return err;
 }
 
-/* send a single frag packet */
-err_t
+/*
+ * send a single frag packet
+ * returns the number bytes flushed to socket
+ */
+
+static int
 descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
 {
 
@@ -586,12 +617,16 @@ descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
 
     /* Send packets here */
     sent = tx_send_advance_consumer(tier);
-    if(sent == 0 || sent == -1) {
-        DESCSOCK_DEBUGF("Failed to send packet\n");
-        return ERR_MEM;
+    if(sent == -1) {
+        DESCSOCK_LOG("Failed to sent bufer\n");
+        return sent;
+    }
+    if(sent == 0 ) {
+        DESCSOCK_DEBUGF("EWOULDBLOCK returned, socket buffer is full\n");
+        return 0;
     }
 
-    return ERR_OK;
+    return send_desc->len;
 }
 
 
@@ -600,7 +635,7 @@ static err_t
 descsock_config_exchange(char * dmapath)
 {
     err_t err = ERR_OK;
-    int n, res, i, epfd;
+    int n, res, epfd, i;
     int num_fds = 0;
     struct epoll_event ev;
     struct epoll_event events[2];
@@ -654,9 +689,10 @@ descsock_config_exchange(char * dmapath)
 
     /* Partition received sockets to our RX, TX arrays */
     descsock_partition_sockets(sc->sock_fd, sc->rx_queue.socket_fd, sc->tx_queue.socket_fd);
+
     for (i = 0; i < NUM_TIERS; i++) {
-        DESCSOCK_LOG("RX: %d", sc->rx_queue.socket_fd[i]);
-        DESCSOCK_LOG("TX: %d", sc->tx_queue.socket_fd[i]);
+        DESCSOCK_LOG("Rx: %d", sc->rx_queue.socket_fd[i]);
+        DESCSOCK_LOG("Tx: %d", sc->tx_queue.socket_fd[i]);
     }
 
 out:

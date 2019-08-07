@@ -112,7 +112,7 @@ ssize_t
 descsock_client_send(void *buf, const uint64_t len, const int flags)
 {
     /* call descsock_ifoutput sending buf to dma agent */
-    int sent = descsock_send((void *)buf, len);
+    int sent = descsock_send(buf, len);
 
     return sent;
 }

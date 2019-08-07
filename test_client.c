@@ -63,6 +63,7 @@ int main(int argc, char *argv[]) {
 
         /* Poll descsock lib */
         ret = descsock_client_poll(0);
+
         /* XXX: Maybe returned the number of packet polled ? */
         if(ret) {
 

@@ -391,12 +391,10 @@ descsock_recv_socket_conns(int fd, int * socks)
     /* recieve vector of messages. single recieve for efficiency */
     int num_recv = recvmmsg(fd, msgvec, vec_len, flags, timeout);
 
-    DESCSOCK_LOG("num_recv: %d\n", num_recv);
-
     if (num_recv < num_socks) {
-        DESCSOCK_LOG("not all fds recieved\n");
+        DESCSOCK_LOG("not all fds recieved %d expected 8\n", num_recv);
         if (num_recv < 0) {
-            perror("recvmmsg failed");
+            perror("");
         }
         else {
             DESCSOCK_LOG("recvmmsg didn't receive all of them, missed %d msgs\n", (int)num_socks - num_recv);

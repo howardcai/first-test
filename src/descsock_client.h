@@ -99,7 +99,7 @@ typedef struct {
  * This extern pointer is set and managed by the descsock client library internally, for client
  * consumption, and the pointed-to data updated in lively manner by the library worker thread.
  */
-extern volatile const descsock_client_stats_t *descsock_stats;
+extern volatile descsock_client_stats_t descsock_client_stats;
 
 typedef struct {
     /*
