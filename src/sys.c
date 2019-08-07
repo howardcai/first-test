@@ -180,7 +180,7 @@ descsock_get_unixsocket(char *path)
     int ret = 1;
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if(fd < 0) {
-        perror("descsock_get_unixskt()\n");
+        DESCSOCK_LOG("Failed to open mastersocket path %s: %s", path, strerror(errno));
         return -1;
     }
     memset(&skt, 0, sizeof(skt));
@@ -220,7 +220,7 @@ descsock_socket_write(int fd, void * buf, UINT32 len)
         }
         else {
             /* error occoured */
-            perror("descsock_socket_write");
+            DESCSOCK_LOG("Failed to write from fd %d: %s", fd, strerror(errno));
             return -1;
         }
     }
@@ -245,7 +245,7 @@ descsock_socket_read(int fd, void * buf, UINT32 len)
         }
         else {
             /* error occoured */
-            perror("descsock_socket_read");
+            DESCSOCK_LOG("Failed to read from fd %d: %s", fd, strerror(errno));
             return -1;
         }
     }
@@ -267,19 +267,19 @@ descsock_map_dmaregion(char * path, UINT64 size)
     unlink(path);
 
 
-    DESCSOCK_LOG("allocated 4k pages %d\n", (UINT32)(size / PAGE_SIZE));
-    DESCSOCK_LOG("dma seg size %lld\n", size);
-    DESCSOCK_LOG("path %s\n", path);
+    DESCSOCK_DEBUGF("allocated 4k pages %d\n", (UINT32)(size / PAGE_SIZE));
+    DESCSOCK_DEBUGF("dma seg size %lld\n", size);
+    DESCSOCK_DEBUGF("path %s\n", path);
 
     fd = open(path, O_CREAT | O_RDWR, S_IRWXU);
     if(fd == -1) {
-        perror("Failed to open path ");
+        DESCSOCK_LOG("Failed to open path %s: %s", path, strerror(errno));
         return NULL;
     }
 
     base_virt = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if(base_virt == MAP_FAILED) {
-        perror("mmap failed");
+        DESCSOCK_LOG("mmap failed: %s", strerror(errno));
         return NULL;
     }
 
@@ -298,7 +298,7 @@ descsock_epoll_create(int size)
 {
     int res = epoll_create(size);
     if(res < 0) {
-        perror("descsock_epoll_create()");
+        DESCSOCK_LOG("Failed on epoll_create: %s", strerror(errno));
         return -1;
     }
 
@@ -311,7 +311,7 @@ descsock_epoll_create1(int flags)
 {
     int res = epoll_create1(flags);
     if(res < 0) {
-        perror("descsock_epoll_create1()");
+        DESCSOCK_LOG("Failed on epoll_create1: %s", strerror(errno));
         return -1;
     }
 
@@ -324,7 +324,7 @@ descsock_epoll_ctl(int epfd, int op, int fd, struct epoll_event *events)
 {
     int res =  epoll_ctl(epfd, op, fd, events);
     if(res < 0) {
-        perror("descsock_epoll_ctl()");
+        DESCSOCK_LOG("Failed on epoll_ctl: %s", strerror(errno));
         return -1;
     }
 
@@ -337,7 +337,7 @@ descsock_epoll_wait(int epfd, struct epoll_event *events, int maxevents, int tim
 {
     int res = epoll_wait(epfd, events, maxevents, timeout);
     if(res < 0) {
-        perror("descsock_epoll_wait()");
+        DESCSOCK_LOG("Failed on epoll_wait: %s", strerror(errno));
         return -1;
     }
     return res;
@@ -392,9 +392,9 @@ descsock_recv_socket_conns(int fd, int * socks)
     int num_recv = recvmmsg(fd, msgvec, vec_len, flags, timeout);
 
     if (num_recv < num_socks) {
-        DESCSOCK_LOG("not all fds recieved %d expected 8\n", num_recv);
+        DESCSOCK_LOG("Not all FDs received %d expected 8\n", num_recv);
         if (num_recv < 0) {
-            perror("");
+            DESCSOCK_LOG("Error receiving all FDs from DMAA: %s", strerror(errno));
         }
         else {
             DESCSOCK_LOG("recvmmsg didn't receive all of them, missed %d msgs\n", (int)num_socks - num_recv);
@@ -422,7 +422,7 @@ descsock_readv_file(file_t fd, struct iovec *iov, int iovcnt)
             return 0;
         }
         else {
-            perror("descsock_readv_file: ");
+            DESCSOCK_LOG("Failed to read from fd %d: %s", fd, strerror(errno));
             return -1;
         }
     }
@@ -443,7 +443,7 @@ descsock_writev_file(file_t fd, const struct iovec *iov, int iovcnt)
         }
         else {
             /* error occoured */
-            perror("error descsock_writev_file: ");
+            DESCSOCK_LOG("Failed to write to fd %d: %s", fd, strerror(errno));
             return -1;
         }
     }
