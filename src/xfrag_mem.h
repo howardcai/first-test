@@ -28,13 +28,13 @@ struct xfrag {
     TAILQ_ENTRY(xfrag) next;
 };
 
-typedef struct {
-    UINT64 xfrag_rx_used;
-    UINT64 xfrag_rx_avail;
+struct xfrag_ussage_stats {
+    UINT32 xfrag_rx_count;
+    UINT64 xfrag_rx_free;
 
-    UINT64 xfrag_tx_used;
-    UINT64 xfrag_tx_avail;
-} xfrag_ussage_stats_t;
+    UINT32 xfrag_tx_count;
+    UINT64 xfrag_tx_free;
+};
 
 err_t xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs);
 
@@ -43,5 +43,7 @@ void xfrag_pool_free(void);
 struct xfrag * xfrag_alloc(bool rx);
 
 void xfrag_free(struct xfrag *xf, bool rx);
+
+int xfrag_pool_avail_count(void);
 
 #endif

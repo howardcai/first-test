@@ -36,11 +36,11 @@ static TAILQ_HEAD(, xfrag) xfrag_pool_headtx;
 static void *xf_base_addr = NULL;
 
 
-xfrag_ussage_stats_t xfrag_stats = {
-    .xfrag_rx_used = 0,
-    .xfrag_rx_avail = 0,
-    .xfrag_tx_used = 0,
-    .xfrag_rx_avail = 0,
+struct xfrag_ussage_stats xfrag_stats = {
+    .xfrag_rx_count = 0,
+    .xfrag_tx_count = 0,
+    .xfrag_rx_free = 0,
+    .xfrag_rx_free = 0,
 };
 
 err_t
@@ -51,6 +51,7 @@ xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
     void *rawbase = pool_base;
     int count = 0;
     UINT64 offset = 0;
+    int total_bufs = num_of_bufs / 2;
 
     TAILQ_INIT(&xfrag_pool_head);
     TAILQ_INIT(&xfrag_pool_headtx);
@@ -94,6 +95,12 @@ xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
         count++;
     }
 
+    xfrag_stats.xfrag_rx_count = total_bufs;
+    xfrag_stats.xfrag_tx_count = total_bufs;
+
+    xfrag_stats.xfrag_rx_free = total_bufs;
+    xfrag_stats.xfrag_tx_free = total_bufs;
+
     return ERR_OK;
 
 err_out:
@@ -120,6 +127,7 @@ struct xfrag * xfrag_alloc(bool rx)
         TAILQ_REMOVE(&xfrag_pool_head, xf, next);
         xf->len = 0;
         xf->idx = -1;
+        xfrag_stats.xfrag_rx_free--;
     }
     else {
         xf = TAILQ_FIRST(&xfrag_pool_headtx);
@@ -130,6 +138,7 @@ struct xfrag * xfrag_alloc(bool rx)
         TAILQ_REMOVE(&xfrag_pool_headtx, xf, next);
         xf->len = 0;
         xf->idx = -1;
+        xfrag_stats.xfrag_tx_free--;
     }
 
     DESCSOCK_DEBUGF("Allocated xfrag with base %p %lld\n", xf->data, (UINT64)xf->data);
@@ -144,9 +153,11 @@ void xfrag_free(struct xfrag *xf, bool rx)
 
     if(rx) {
         TAILQ_INSERT_TAIL(&xfrag_pool_head, xf, next);
+        xfrag_stats.xfrag_rx_free++;
     }
     else {
         TAILQ_INSERT_TAIL(&xfrag_pool_headtx, xf, next);
+        xfrag_stats.xfrag_tx_free++;
     }
 }
 
@@ -170,4 +181,11 @@ void print_xfrag_pool(void)
     TAILQ_FOREACH(xf, &xfrag_pool_head, next) {
         DESCSOCK_LOG("xfrag->len %d xfrag->data %p %lld\n", xf->len, xf->data, (UINT64)xf->data);
     }
+}
+
+/* Will return the number of available free spots to insert data to */
+int xfrag_pool_avail_count()
+{
+
+    return xfrag_stats.xfrag_tx_free;
 }

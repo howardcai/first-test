@@ -219,7 +219,7 @@ descsock_init_conn()
     /*
      * Initialize xfrag and packet memory pool,
      */
-    err = xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, RING_SIZE * 2);
+    err = xfrag_pool_init(sc->dma_region.base, sc->dma_region.len, RING_SIZE * 4);
     if(err != ERR_OK) {
         err = ERR_MEM;
         goto err_out;
@@ -267,6 +267,47 @@ err_out:
     return err;
 }
 
+BOOL descsock_state_err()
+{
+    if(sc->state == DESCSOCK_FAILED) {
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/* check the send ring to see if we can take any more outgoing packets */
+BOOL descsock_state_full()
+{
+    int tier = 0;
+    int used_sendring_slots;
+    int avail_sendring_slots;
+
+    laden_desc_fifo_t *send_ring = &sc->tx_queue.outbound_descriptors[tier];
+
+    /* get number of currenlty used send ring descriptors */
+    used_sendring_slots = laden_desc_fifo_avail(send_ring);
+    avail_sendring_slots = (LADEN_DESC_RING_SIZE - used_sendring_slots) / LADEN_DESC_LEN;
+
+    /* Need to check if I have space for at least 5 send descriptors */
+    if(avail_sendring_slots < DESCSOCK_MAX_TX_XFRAGS_PER_PACKET) {
+        DESCSOCK_LOG("Not enough room in send ring for packet\n");
+        return TRUE;
+    }
+
+    /* Need to check if we have space for at least 5 tx xfrags to use */
+    if(xfrag_pool_avail_count() < DESCSOCK_MAX_TX_XFRAGS_PER_PACKET) {
+        DESCSOCK_LOG("Not enough xfrags for packet\n");
+        return TRUE;
+    }
+
+    /*
+     * We have space for at least 5 outgoing packets
+     * Return false because we are not full
+     */
+
+    return FALSE;
+}
 /* Send a buf owned by descsock client */
 // XXX: Return the number of bytes writen
 int descsock_send(void *buf, UINT32 len)
@@ -1114,6 +1155,7 @@ flush_bytes_to_socket(UINT32 tx, int qos)
     }
     else if(advance == -1){
         /* received an error while writing to socket */
+        sc->state = DESCSOCK_FAILED;
         ret = -1;
     }
 

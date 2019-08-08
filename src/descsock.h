@@ -38,7 +38,7 @@
 #define DESCSOCK_PATH_MAX               512
 
 /* DMA rings  metadata */
-#define RING_SIZE                           (256) /* XXX make dynamic? */
+#define RING_SIZE                           (1024) /* XXX make dynamic? */
 #define RING_MASK                           (RING_SIZE - 1)
 #define RING_WRAP(x)                        ((x) & RING_MASK)
 /*
@@ -200,7 +200,9 @@ typedef struct {
 typedef enum {
     DESCSOCK_UP,
     DESSOCK_DOWN,
+    DESCSOCK_FULL,
     DESCSOCK_FAILED,
+    DESCSOCK_RESTART
 }descsock_state_t;
 
 /* Device instance structure. */
@@ -235,6 +237,8 @@ BOOL descsock_poll(int event_mask);
 int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id);
 int descsock_send(void *handle, UINT32 len);
 int descsock_recv(void *buf, UINT32 len, int flag);
+BOOL descsock_state_full(void);
+BOOL descsock_state_err(void);
 
 
 

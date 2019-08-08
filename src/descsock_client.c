@@ -93,15 +93,30 @@ descsock_client_open(descsock_client_spec_t * const spec, const int flags)
 int
 descsock_client_poll(int event_mask)
 {
-    /* Check for received packets */
-    bool ret = descsock_poll(event_mask);
+    int flags = 0;
 
-    if(ret) {
-        /* got a packet */
-        return 1;
+    /* Check if descsock is in err state */
+    bool err = descsock_state_err();
+    if(err) {
+        return DESCSOCK_POLLERR;
     }
 
-    return 0;
+    /* Check if descsock state has space for at least 9KB of outgoing packet data */
+    bool full = descsock_state_full();
+    if((!full) && (event_mask & DESCSOCK_POLLOUT)) {
+        flags |= DESCSOCK_POLLOUT;
+    }
+
+    /* Check for received packets */
+
+    bool readable = descsock_poll(event_mask);
+
+    if((readable) && (event_mask & DESCSOCK_POLLIN)) {
+        // There is data to be read
+        flags |= DESCSOCK_POLLIN;
+    }
+
+    return flags;
 }
 
 /*

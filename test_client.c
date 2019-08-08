@@ -64,8 +64,15 @@ int main(int argc, char *argv[]) {
         /* Poll descsock lib */
         ret = descsock_client_poll(DESCSOCK_POLLIN | DESCSOCK_POLLOUT);
 
-        /* XXX: Maybe returned the number of packet polled ? */
-        if(ret) {
+        if(ret & DESCSOCK_POLLERR) {
+            printf("descsock library in ERR state\n");
+            break;
+        }
+
+        /*
+         * Is readable, there is packets to read
+         */
+        if(ret & DESCSOCK_POLLIN) {
 
             /* You got mail! */
             printf("Packets ready to be consumed\n");
@@ -73,13 +80,16 @@ int main(int argc, char *argv[]) {
             descsock_client_recv(rxbuf, DESCSOCK_CLIENT_BUF_SIZE, 0);
            // break;
         }
-        else {
-            printf("no packets\n");
+
+        /*
+         * Is writable, descsock library can take more packets to send
+         */
+        if(ret & DESCSOCK_POLLOUT) {
             printf("Sending 10 packet\n");
             send_packets(10);
         }
 
-        sleep(2);
+        sleep(1);
     }
 
 

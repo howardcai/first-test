@@ -43,7 +43,6 @@ GLOBALSET struct descsock_conf descsock_conf = {
     .physmem = FALSE,
     .virtmem = FALSE,
     .use_tap = FALSE,
-    .hugepages_path = "/run/hugepages/",
 };
 
 enum {
