@@ -267,8 +267,14 @@ err_out:
     return err;
 }
 
+
+/* Check if we have bad unix domain sockets to write/read to */
 BOOL descsock_state_err()
 {
+    /*
+     * DESCSOCK_FAILED will only be set if for some reason the DMA Agent crashed and all of our
+     * Rx, Tx sockets return a -1 when read or writen to
+     */
     if(sc->state == DESCSOCK_FAILED) {
         return TRUE;
     }
@@ -1231,6 +1237,7 @@ refill_inbound_fifo_from_socket(UINT32 tx, UINT32 qos)
     }
     else if (advance == -1) {
         /* received an error while reading from socket */
+        sc->state = DESCSOCK_FAILED;
         ret =  -1;
     }
 
