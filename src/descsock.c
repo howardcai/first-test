@@ -261,19 +261,18 @@ descsock_init_conn()
 err_out:
     /* Free DMA mem */
     xfrag_pool_free();
-
     packet_pool_free();
 
     return err;
 }
 
 
-/* Check if we have bad sockets to write/read to */
+/* Check if DMA Agent has crashed, we lost our sockets*/
 BOOL descsock_state_err()
 {
     /*
-     * DESCSOCK_FAILED will only be set if for some reason the DMA Agent crashed and all of our
-     * Rx, Tx sockets return a -1 when read or writen to
+     * DESCSOCK_FAILED will only be set if for some reason the DMA Agent crashed, all of our
+     * Rx, Tx sockets return a -1 when read or writen to.
      */
     if(sc->state == DESCSOCK_FAILED) {
         return TRUE;
@@ -314,8 +313,8 @@ BOOL descsock_state_full()
 
     return FALSE;
 }
+
 /* Send a buf owned by descsock client */
-// XXX: Return the number of bytes writen
 int descsock_send(void *buf, UINT32 len)
 {
     err_t err = ERR_OK;
@@ -335,7 +334,7 @@ int descsock_send(void *buf, UINT32 len)
         return -1;
     }
 
-    //XXX: Validate buf from client
+    //XXX: Validate buf from client, maybe get vlan info from buf?
     pkt = packet_alloc();
     if(pkt == NULL) {
         DESCSOCK_LOG("Failed to alloc packet\n");
@@ -373,6 +372,7 @@ int descsock_send(void *buf, UINT32 len)
     return writen_bytes;
 
 err_out:
+
     if(pkt != NULL) {
         packet_free(pkt);
     }
@@ -384,7 +384,7 @@ err_out:
 }
 
 /*
- * XXX: Return number of bytes read
+ * Returns numbe of bytes read, or 0 if no rx packets
  */
 int
 descsock_recv(void *buf, UINT32 len, int flag)
@@ -397,6 +397,7 @@ descsock_recv(void *buf, UINT32 len, int flag)
         return 0;
     }
 
+    /* Dequeue packet */
     pkt = FIXEDQ_HEAD(sc->rx_queue.rx_pkt_queue);
     FIXEDQ_REMOVE(sc->rx_queue.rx_pkt_queue);
 
@@ -406,8 +407,8 @@ descsock_recv(void *buf, UINT32 len, int flag)
 
     /* Recycle DMA bufs  */
     xfrag_free(pkt->xf_first, rx);
-
     packet_free(pkt);
+
     DESCSOCK_DEBUGF("received pkt %p with buf %p %lld len %d\n",
         pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
 
@@ -417,15 +418,15 @@ descsock_recv(void *buf, UINT32 len, int flag)
 err_t
 descsock_teardown()
 {
-
-    xfrag_pool_free();
-    packet_pool_free();
-
-    free(sc);
+    descsock_close_fds();
 
     /*
      * Free all allocated memory in queues
      */
+    xfrag_pool_free();
+    packet_pool_free();
+
+    free(sc);
 
     return ERR_OK;
 }
@@ -524,7 +525,7 @@ descsock_poll(int mask) {
             /* XXX: add support to Rx a multi-desc packet */
             if(!desc->eop) {
                 DESCSOCK_LOG("Jumbo frame are not accepted yet");
-                exit(-1);
+                goto out;
             }
 
             /* add pkt to rx ready to consume queueu */
@@ -562,6 +563,9 @@ out:
 
 /*
  * TX
+ * Send packet out, flush send descriptor
+ * Returns OK if packet was sent, also sets the number of bytes writen to socket in
+ * @writen_bytes
  */
 err_t
 descsock_ifoutput(struct packet *pkt, int *writen_bytes)
@@ -632,8 +636,7 @@ descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
     send_desc->sop = 1;
     send_desc->eop = 1;
 
-    /* Check for vlan tag */
-    /* Hack get a DID from a vlan tag */
+    /* XXX: Get DID from a vlan tag */
     //err = descsock_get_vlantag(pkt, &vlan_tag);
     if(err == ERR_OK) {
         if(sc->descsock_l2_override) {
@@ -670,7 +673,7 @@ descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
         return sent;
     }
     if(sent == 0 ) {
-        DESCSOCK_DEBUGF("EWOULDBLOCK returned, socket buffer is full\n");
+        DESCSOCK_LOG("EWOULDBLOCK returned, socket buffer is full\n");
         return 0;
     }
 

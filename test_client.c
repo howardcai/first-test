@@ -74,10 +74,6 @@ int main(int argc, char *argv[]) {
          * Is readable, there is packets to read
          */
         if(ret & DESCSOCK_POLLIN) {
-
-            /* You got mail! */
-            printf("Packets ready to be consumed\n");
-
             /* Read until we have not more Rx packets */
             while(descsock_client_recv(rxbuf, DESCSOCK_CLIENT_BUF_SIZE, 0)) {
 
