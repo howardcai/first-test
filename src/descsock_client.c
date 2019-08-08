@@ -108,7 +108,6 @@ descsock_client_poll(int event_mask)
     }
 
     /* Check for received packets */
-
     bool readable = descsock_poll(event_mask);
 
     if((readable) && (event_mask & DESCSOCK_POLLIN)) {
