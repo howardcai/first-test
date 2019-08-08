@@ -36,6 +36,7 @@ int main(int argc, char *argv[]) {
 
     void *rxbuf;
     int ret = 0;;
+    int recv_count = 0;
 
     descsock_client_spec_t *client = malloc(sizeof(descsock_client_spec_t));
 
@@ -77,8 +78,17 @@ int main(int argc, char *argv[]) {
             /* You got mail! */
             printf("Packets ready to be consumed\n");
 
-            descsock_client_recv(rxbuf, DESCSOCK_CLIENT_BUF_SIZE, 0);
-           // break;
+            /* Read until we have not more Rx packets */
+            while(descsock_client_recv(rxbuf, DESCSOCK_CLIENT_BUF_SIZE, 0)) {
+
+                /*
+                 * consume packets in rxbuf
+                 */
+                recv_count++;
+            }
+
+            printf("Recieved %d packets\n", recv_count);
+            recv_count = 0;
         }
 
         /*

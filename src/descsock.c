@@ -268,7 +268,7 @@ err_out:
 }
 
 
-/* Check if we have bad unix domain sockets to write/read to */
+/* Check if we have bad sockets to write/read to */
 BOOL descsock_state_err()
 {
     /*
@@ -384,31 +384,34 @@ err_out:
 }
 
 /*
- * XXX: Return number of bytes writen
+ * XXX: Return number of bytes read
  */
 int
 descsock_recv(void *buf, UINT32 len, int flag)
 {
     struct packet *pkt;
     bool rx = true;
+    int read_len = 0;
 
-    while(!FIXEDQ_EMPTY(sc->rx_queue.rx_pkt_queue)) {
-        pkt = FIXEDQ_HEAD(sc->rx_queue.rx_pkt_queue);
-
-        DESCSOCK_DEBUGF("received pkt %p with buf %p %lld len %d\n",
-            pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
-
-        memcpy(buf, pkt->xf_first->data, pkt->len);
-
-        /* Recycle DMA bufs  */
-        xfrag_free(pkt->xf_first, rx);
-
-        packet_free(pkt);
-
-        FIXEDQ_REMOVE(sc->rx_queue.rx_pkt_queue);
+    if(FIXEDQ_EMPTY(sc->rx_queue.rx_pkt_queue)) {
+        return 0;
     }
 
-    return SUCCESS;
+    pkt = FIXEDQ_HEAD(sc->rx_queue.rx_pkt_queue);
+    FIXEDQ_REMOVE(sc->rx_queue.rx_pkt_queue);
+
+    read_len = pkt->len;
+
+    memcpy(buf, pkt->xf_first->data, read_len);
+
+    /* Recycle DMA bufs  */
+    xfrag_free(pkt->xf_first, rx);
+
+    packet_free(pkt);
+    DESCSOCK_DEBUGF("received pkt %p with buf %p %lld len %d\n",
+        pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
+
+    return read_len;
 }
 
 err_t
