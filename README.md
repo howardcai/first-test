@@ -1,7 +1,8 @@
-
 ### GENERAL USAGE  
 *See `test_client.c` for an example*
 ***
+<br />
+
 1)  Call `descsock_open()` with an `descsock_client_spec_t` defining
    client requirements, as well as any flags. The client library will
    create a thread in the caller's process which manages the DMA Agent
@@ -14,9 +15,11 @@
    model, to check for, send, and receive Ethernet frames,
    respectively.  
    
-3)  Call `descsock_close()` to terminate the client connection
-   with the DMA Agent  
+3)  Call `descsock_close()` to terminate the client connection with the DMA Agent  
+***
+<br />
    
+**Structure containing hugepages path, master socket path and svc id**
 ```
 typedef struct {
     /*
@@ -38,9 +41,8 @@ typedef struct {
      */
     int     svc_id;
 } descsock_client_spec_t;
-```
 
-```
+
 /*
  * Poll event bits requested in @event_mask of calls to `descsock_poll()`, and
  * returned by descsock_poll() if requested condition(s) are met.
@@ -49,6 +51,8 @@ typedef struct {
 #define DESCSOCK_POLLOUT    (1 <<  1)   // Sending now would not block.
 #define DESCSOCK_POLLERR    (1 << 31)   // Error condition (return only).
 ```
+***
+<br />
 
 **At present, this library does not support tenants in VMs using VirtIO serial sockets.**  
 ***
