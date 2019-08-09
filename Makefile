@@ -84,7 +84,7 @@ install: ## Install built libraries and headers. Will install under ./ unless ov
 #
 RPM_BUILD_DIR   := rpmbuild
 RPM_SPEC        := libdescsock-client.spec
-RPM_FNAME       := libdescsock-client-$(VERSION).x86_64.rpm
+RPM_FNAME       := libdescsock-client-$(VERSION)-dev.x86_64.rpm
 RPM_PATH        := $(RPM_BUILD_DIR)/RPMS/x86_64
 RPM             := $(RPM_PATH)/$(RPM_FNAME)
 .PHONY: rpm
