@@ -1,0 +1,50 @@
+image: artifactory.f5net.com/velocity-platform-docker-dev/datapath-builder:1.5.3
+
+stages:
+  - quality
+  - build
+  - publish
+  - release
+
+before_script:
+  - source /opt/rh/devtoolset-7/enable
+
+quality:
+  stage: quality
+  tags:
+    - velocity-platform-runner
+  script:
+    - make cppcheck
+
+build:
+  stage: build
+  tags:
+     - velocity-platform-runner
+  script:
+    - make
+    - make rpm
+  artifacts:
+    paths:
+      - obj
+      - rpmbuild/RPMS/x86_64
+    expire_in: 1 day
+
+publish:
+  stage: publish
+  tags:
+    - velocity-platform-runner
+  script:
+    - make publish
+  only:
+    variables:
+      - $CI_COMMIT_TAG =~ /\d+\.\d+\.\d+/
+
+release:
+  stage: release
+  tags:
+    - velocity-platform-runner
+  script:
+    - make release
+  only:
+    variables:
+      - $CI_COMMIT_TAG =~ /\d+\.\d+\.\d+/

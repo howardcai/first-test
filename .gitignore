@@ -1,0 +1,71 @@
+# Exclude built artifacts
+/obj/*
+/rpmbuild/*
+client
+
+# Exclude other junk
+ddmaa_doorbell.sock
+/*.core
+/core
+/core.*
+*.orig
+*~
+
+# Exclude generated ajobs metadata
+/ajobs-metadata/*
+
+# Exclude gcov related
+/*.gc*
+
+# Exclude submodule symlinks
+/src/simd
+/src/trace
+/src/driver
+/src/fpga
+/.submodules/trace/src/simd
+/test/simd
+/test/trace
+
+# Prerequisites
+*.d
+
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Linker output
+*.ilk
+*.map
+*.exp
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
