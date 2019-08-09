@@ -132,9 +132,9 @@ typedef struct {
  * Poll event bits requested in @event_mask of calls to descsock_poll(), and
  * returned by descsock_poll() if requested condition(s) are met.
  */
-#define DESCSOCK_POLLIN     (1 <<  0)   // There is data to receive.
-#define DESCSOCK_POLLOUT    (1 <<  1)   // Sending now would not block.
-#define DESCSOCK_POLLERR    (1 << 31)   // Error condition (return only).
+#define DESCSOCK_POLLIN     (1U <<  0)  // There is data to receive.
+#define DESCSOCK_POLLOUT    (1U <<  1)  // Sending now would not block.
+#define DESCSOCK_POLLERR    (1U << 31)  // Error condition (return only).
 
 
 /*

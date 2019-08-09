@@ -186,27 +186,33 @@ err_t
 descsock_init_conn()
 {
     err_t err = ERR_OK;
-    char msg[DESCSOCK_PATH_MAX];
+    char msg[DESCSOCK_MSG_MAX];
     int i;
 
     /* Concatenate descsock.000 to path string to create hugepages path mount */
-    snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000", descsock_conf.hugepages_path);
+    if (snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000", descsock_conf.hugepages_path) >= DESCSOCK_PATH_MAX){
+        DESCSOCK_LOG("Path to DMA segment too long.");
+        goto err_out;
+    }
 
     /* Save hugepages mount info  */
-    snprintf(sc->dma_region.path, DESCSOCK_PATH_MAX, "%s", msg);
+    snprintf(sc->dma_region.path, sizeof(sc->dma_region.path), "%s", msg);
     sc->dma_region.len = descsock_conf.dma_seg_size;
 
     /* try mmaping the passed in hugepages path */
     sc->dma_region.base = descsock_map_dmaregion(sc->dma_region.path, sc->dma_region.len);
     if(sc->dma_region.base == NULL) {
-        DESCSOCK_LOG("Failed to map hugepages\n");
+        DESCSOCK_LOG("Failed to map hugepages.");
         err = ERR_CONN;
         goto err_out;
     }
 
     /* Create message string to send to dmaa */
-    snprintf(msg, DESCSOCK_PATH_MAX, "path=%s\nbase=%llu\nlength=%llu\nnum_sep=1\npid=1\nsvc_ids=1\n\n",
-             sc->dma_region.path, (UINT64)sc->dma_region.base, sc->dma_region.len);
+    if (snprintf(msg, sizeof(msg), "path=%s\nbase=%llu\nlength=%llu\nnum_sep=1\npid=1\nsvc_ids=1\n\n",
+             sc->dma_region.path, (UINT64)sc->dma_region.base, sc->dma_region.len) >= sizeof(msg)) {
+        DESCSOCK_LOG("Registration message too long.");
+        goto err_out;
+    }
 
     /* call the master socket here */
     sc->master_socket_fd = descsock_establish_dmaa_conn();
@@ -231,13 +237,13 @@ descsock_init_conn()
         goto err_out;
     }
 
-    DESCSOCK_LOG("received master socket %d\n", sc->master_socket_fd);
+    DESCSOCK_LOG("received master socket %d.", sc->master_socket_fd);
     DESCSOCK_LOG("Sending msg to DMAA %s", msg);
 
     /* Send dma region path info to DMA AGENT */
     err = descsock_config_exchange(msg);
     if (err != ERR_OK) {
-        DESCSOCK_LOG("Failed to write dma region to dmaa\n");
+        DESCSOCK_LOG("Failed to write dma region to dmaa");
         err = ERR_CONN;
         goto err_out;
     }
