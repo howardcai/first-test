@@ -30,6 +30,7 @@ struct client_buf {
 uint16_t chksum(uint16_t *buf, int nwords);
 void prep_dummypkt(void *buf_base);
 void send_packets(int count);
+void descsock_client_print_buf(void * buf, int buf_len);
 
 
 int main(int argc, char *argv[]) {
@@ -59,7 +60,7 @@ int main(int argc, char *argv[]) {
         printf("rxbuf returned null on malloc\n");
         exit(EXIT_FAILURE);
     }
-
+    int read = 0;
     while(1) {
 
         /* Poll descsock lib */
@@ -71,15 +72,20 @@ int main(int argc, char *argv[]) {
         }
 
         /*
-         * Is readable, there is packets to read
+         * Is descsock readable
          */
         if(ret & DESCSOCK_POLLIN) {
-            /* Read until we have not more Rx packets */
-            while(descsock_client_recv(rxbuf, DESCSOCK_CLIENT_BUF_SIZE, 0)) {
+
+            /*
+             * There is data to be read from descsock
+             * Read until we have not more Rx packets
+             */
+            while((read = descsock_client_recv(rxbuf, DESCSOCK_CLIENT_BUF_SIZE, 0))) {
 
                 /*
                  * consume packets in rxbuf
                  */
+                descsock_client_print_buf(rxbuf, read);
                 recv_count++;
             }
 
@@ -88,11 +94,15 @@ int main(int argc, char *argv[]) {
         }
 
         /*
-         * Is writable, descsock library can take more packets to send
+         * Can we write to descsock
          */
         if(ret & DESCSOCK_POLLOUT) {
+
+            /*
+             * Send some packets
+             */
             printf("Sending 10 packet\n");
-            send_packets(10);
+            send_packets(1);
         }
 
         sleep(1);
@@ -108,6 +118,28 @@ int main(int argc, char *argv[]) {
 
     printf("Compile success\n");
     return EXIT_SUCCESS;
+}
+
+void
+descsock_client_print_buf(void * buf, int buf_len)
+{
+    char *p = (char *)buf;
+    int i;
+
+    if (buf == NULL || buf_len < 0) {
+        printf("NULL buf\n");
+		return;
+    }
+
+    printf("Buf: %p Length: %d\n", buf, buf_len);
+
+    for (i = 0; i < buf_len; i++) {
+        if (i % 32 == 0) {
+            printf("\n%06d ", i);
+        }
+        printf("%02x ", p[i]);
+    }
+    printf("\n\n");
 }
 
 /*
@@ -146,19 +178,32 @@ void prep_dummypkt(void *buf_base)
 {
      /* Add ether header to buf */
     struct ether_header *eth = (struct ether_header *)buf_base;
+    eth->ether_dhost[0] = 0x00;
+    eth->ether_dhost[1] = 0x00;
+    eth->ether_dhost[2] = 0x00;
+    eth->ether_dhost[3] = 0x00;
+    eth->ether_dhost[4] = 0x00;
+    eth->ether_dhost[5] = 0x06;
+
     eth->ether_shost[0] = 0x00;
     eth->ether_shost[1] = 0x00;
     eth->ether_shost[2] = 0x00;
     eth->ether_shost[3] = 0x00;
     eth->ether_shost[4] = 0x00;
-    eth->ether_shost[5] = 0xf5;
+    eth->ether_shost[5] = 0x05;
+    eth->ether_type = 0x0800;
+
+
 
     /* add IP header to buf */
     struct iphdr *ip = (struct iphdr *) (buf_base + ETHER_HEADER_LEN);
     ip->ttl = 64;
     ip->tot_len = ETHER_HEADER_LEN + IP_HEADER_LEN;
     ip->protocol = 1;
-    ip->check = chksum( (uint16_t*)buf_base,  ETHER_HEADER_LEN + IP_HEADER_LEN);
+    ip->version = 4;
+    ip->saddr = 3232235777; /* 192.168.1.1 */
+    ip->daddr = 3232235876; /* 192.168.1.100 */
+    //ip->check = chksum( (uint16_t*)buf_base,  ETHER_HEADER_LEN + IP_HEADER_LEN);
 
     //XXX: add ip source and dest
 

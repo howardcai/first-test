@@ -314,7 +314,10 @@ BOOL descsock_state_full()
     return FALSE;
 }
 
-/* Send a buf owned by descsock client */
+/*
+ * Send a buf owned by descsock client
+ * Returns the number of bytes sent
+ */
 int descsock_send(void *buf, UINT32 len)
 {
     err_t err = ERR_OK;
@@ -384,7 +387,7 @@ err_out:
 }
 
 /*
- * Returns numbe of bytes read, or 0 if no rx packets
+ * Returns number of bytes read, or 0 if no rx packets
  */
 int
 descsock_recv(void *buf, UINT32 len, int flag)
@@ -415,6 +418,7 @@ descsock_recv(void *buf, UINT32 len, int flag)
     return read_len;
 }
 
+/* Clean descsock state, free all mem */
 err_t
 descsock_teardown()
 {
@@ -431,6 +435,10 @@ descsock_teardown()
     return ERR_OK;
 }
 
+/*
+ * Read Rx sockets for any rx packets
+ * Returns TRUE if we read any packet from dma agent
+ */
 BOOL
 descsock_poll(int mask) {
 
@@ -564,7 +572,7 @@ out:
 /*
  * TX
  * Send packet out, flush send descriptor
- * Returns OK if packet was sent, also sets the number of bytes writen to socket in
+ * Returns OK if packet was sent, also sets the number of bytes writen in
  * @writen_bytes
  */
 err_t
@@ -607,7 +615,6 @@ descsock_ifoutput(struct packet *pkt, int *writen_bytes)
     // descsock_client_stats.tx_bytes_out += *writen_bytes;
 
     DESCSOCK_DEBUGF("sendring cons:%d prod:%d", tx_out_fifo->cons_idx, tx_out_fifo->prod_idx);
-
 
 out:
     return err;
