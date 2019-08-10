@@ -1,6 +1,13 @@
 [![pipeline status](https://gitlab.f5net.com/datapath/generic-descsock-library/badges/master/pipeline.svg)](https://gitlab.f5net.com/datapath/generic-descsock-library/commits/master)
+<br />
 ### GENERAL USAGE
 *See `test_client.c` for an example*
+```
+make rpm
+sudo rpm -i rpmbuild/RPMS/x86_64/libdescsock-client-THEVERSION-dev.x86_64.rpm 
+make example
+./test_client
+```
 ***
 <br />
 
@@ -68,14 +75,14 @@ Only a **single SEP** is opened, and only Rx/Tx QoS 0 on that SEP will be operat
 As a result of calling this function, the client library creates a new thread in the caller's  context which manages the client's SEP,
 providing empty buffer descriptors to the DMA Agent and buffering returned laden descriptors until the user calls _descsock_recv()_,
 as well as sending buffers supplied in _descsock_send()_.
-Returns 0 on success, -1 on failure and errno will be set appropriately.
+Returns 0 on success, -1 on failure and errno will be set appropriately.  
 `int descsock_open(descksock_client_spec_t * const spec, const int flags);`
 ***
 <br />
 <br />
 
 Takes an _@event_mask_ of _DESCSOCK_POLL_ events and checks if the current descsock state meets the condition of the requested events.
-Returns a mask of event conditions which are satisfied and in the _@event_mask_, or _DESCSOCK_POLLERR_ (-1) if an error is encountered.
+Returns a mask of event conditions which are satisfied and in the _@event_mask_, or _DESCSOCK_POLLERR_ (-1) if an error is encountered.  
 `int descsock_poll(int event_mask);`
 ***
 <br />
@@ -86,7 +93,7 @@ _@flags_ specifies any flags which override the defaults specified in _descsock_
 Note that @buf must point to a complete Ethernet frame, including 4 trailing empty bytes for the CRC. This is required by hardware.
 Returns number of bytes sent, or -1 on failure and errno will be set appropriately.
 If errno is EWOULDBLOCK, and the DESCSOCK_NONBLOCK flag is set, then there is
-back-pressure on the transmit descriptor socket (no room to send).
+back-pressure on the transmit descriptor socket (no room to send).  
 `ssize_t descsock_send(const void * const buf, const size_t len, const int flags);`
 ***
 <br />
@@ -99,7 +106,7 @@ hardware.
 Returns number of bytes recieved into _@buf_, or -1 on failure and errno will be set appropriately.
 
 If errno is EWOULDBLOCK, and the DESCSOCK_NONBLOCK flag is set, then no complete packets have been buffered internally by the client library
-worke thread (no data to recv).
+worke thread (no data to recv).  
 `ssize_t descsock_recv(void * const buf, const size_t len, const int flags);`
 ***
 <br />
@@ -107,14 +114,14 @@ worke thread (no data to recv).
 
 This is to provide a conceptual analogue to fnctl on a socket. Currently no
 commands _(@cmd)_ are implemented, but this is defined for future uses like setting advanced options, etc, as a general way to achieve mostly
-backwards-compatible / non-breaking extensions to the API. Returns 0 on success, -1 on failure and errno will be set appropriately.
+backwards-compatible / non-breaking extensions to the API. Returns 0 on success, -1 on failure and errno will be set appropriately.  
 `int descsock_cntl(const int cmd, ...);`
 ***
 <br />
 <br />
 
 This cleanly closes the connection to the DMA Agent associated with this process / library worker thread, unmaps any shared memory, and frees any
-internal resources. Returns 0 on success, -1 on failure and errno will be set appropriately.
+internal resources. Returns 0 on success, -1 on failure and errno will be set appropriately.  
 `int descsock_close(void);`
 <br />
 <br />
