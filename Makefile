@@ -49,14 +49,15 @@ OBJ_DIR        = obj
 libraryC := $(addprefix $(SRC_DIR)/, descsock.c descsock_client.c packet.c sys.c xfrag_mem.c)
 libraryH := $(addprefix $(SRC_DIR)/, descsock.h descsock_client.h common.h err.h fixed_queue.h hudconf.h packet.h sys.h types.h xfrag_mem.h)
 libraryO := $(libraryC:.c=.o)
-publicH := $(addprefix $(SRC_DIR)/, descsock_client.h)
-publicO := $(addprefix $(OBJ_DIR)/, libdescsock-client.so libdescsock-client.a)
-# XXX todo example/test
+publicH  := $(addprefix $(SRC_DIR)/, descsock_client.h)
+publicO  := $(addprefix $(OBJ_DIR)/, libdescsock-client.so libdescsock-client.a)
+exampleC := test_client.c
+exampleO := test_client
 
 .PHONY: all library
-all: library example          ## Build all (default)
+all: library ## Build library (default)
 library: $(publicO) $(publicH) ## Build static and dynamic libraries.
-example: library $(exampleO)  ## Build example test program.
+example: library $(exampleO)  ## Build example test program. Assumes RPM has been installed.
 
 $(OBJ_DIR)/libdescsock-client.so: $(libraryO) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(FLAGS_SHARED) -o $@  $^
@@ -66,6 +67,9 @@ $(OBJ_DIR)/libdescsock-client.a: $(libraryO) $(publicH) | $(OBJ_DIR)
 
 $(libraryO): %.o:%.c
 	$(CC) $(CFLAGS) $(FLAGS_STATIC) -o $@ $<
+
+$(exampleO): $(exampleC)
+	$(CC) $(CFLAGS) -ldescsock-client -o $@ $^
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)

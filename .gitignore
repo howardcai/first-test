@@ -1,7 +1,7 @@
 # Exclude built artifacts
 /obj/*
 /rpmbuild/*
-client
+test_client
 
 # Exclude other junk
 ddmaa_doorbell.sock
