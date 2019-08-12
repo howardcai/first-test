@@ -7,7 +7,7 @@
 #include <net/ethernet.h>
 #include <sys/epoll.h>
 
-#include "src/descsock_client.h"
+#include <descsock_client.h>
 
 #define ETHER_HEADER_LEN    sizeof(struct ether_header)
 #define IP_HEADER_LEN       sizeof(struct iphdr)
