@@ -208,7 +208,6 @@ typedef enum {
 
 /* Device instance structure. */
 struct descsock_softc {
-
     int                         master_socket_fd;
     int                         sock_fd[DESCSOCK_MAX_QOS_TIERS * 2];
     int                         n_qos;
@@ -223,6 +222,7 @@ struct descsock_softc {
 
     BOOL                        descsock_l2_override;
     dma_region_t                dma_region;
+
   };
 
 /*

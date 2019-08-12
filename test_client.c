@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
                 /*
                  * consume packets in rxbuf
                  */
-                descsock_client_print_buf(rxbuf, read);
+                //descsock_client_print_buf(rxbuf, read);
                 recv_count++;
             }
 
@@ -101,8 +101,8 @@ int main(int argc, char *argv[]) {
             /*
              * Send some packets
              */
-            printf("Sending 10 packet\n");
-            send_packets(1);
+            printf("Sending 5 packet\n");
+            send_packets(5);
         }
 
         sleep(1);

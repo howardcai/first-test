@@ -190,7 +190,8 @@ descsock_init_conn()
     int i;
 
     /* Concatenate descsock.000 to path string to create hugepages path mount */
-    if (snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000", descsock_conf.hugepages_path) >= DESCSOCK_PATH_MAX){
+    if (snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000", descsock_conf.hugepages_path) >= DESCSOCK_PATH_MAX)
+    {
         DESCSOCK_LOG("Path to DMA segment too long.");
         goto err_out;
     }
@@ -208,8 +209,9 @@ descsock_init_conn()
     }
 
     /* Create message string to send to dmaa */
-    if (snprintf(msg, sizeof(msg), "path=%s\nbase=%llu\nlength=%llu\nnum_sep=1\npid=1\nsvc_ids=1\n\n",
-             sc->dma_region.path, (UINT64)sc->dma_region.base, sc->dma_region.len) >= sizeof(msg)) {
+    if (snprintf(msg, sizeof(msg), "path=%s\nbase=%llu\nlength=%llu\nnum_sep=1\npid=1\nsvc_ids=%d\n\n",
+             sc->dma_region.path, (UINT64)sc->dma_region.base, sc->dma_region.len, descsock_conf.svc_ids) >= sizeof(msg))
+    {
         DESCSOCK_LOG("Registration message too long.");
         goto err_out;
     }
