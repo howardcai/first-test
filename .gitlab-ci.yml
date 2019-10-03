@@ -1,6 +1,12 @@
-image: artifactory.f5net.com/velocity-platform-docker-dev/datapath-builder:1.5.3
+image: artifactory.f5net.com/velocity-platform-docker-dev/datapath-builder:1.6.1
+
+# This is the source for the prepare and release stages of the pipeline.
+include:
+  project: velocity/common/platform-semrel
+  file: ci-include/v1/semrel.yml
 
 stages:
+  - prepare
   - quality
   - build
   - publish
@@ -8,6 +14,10 @@ stages:
 
 before_script:
   - source /opt/rh/devtoolset-7/enable
+
+prepare:version:
+  stage: prepare
+  extends: .release-prepare
 
 quality:
   stage: quality
@@ -36,15 +46,9 @@ publish:
   script:
     - make publish
   only:
-    variables:
-      - $CI_COMMIT_TAG =~ /\d+\.\d+\.\d+/
+    refs:
+      - master
 
-release:
+release:changelog:
   stage: release
-  tags:
-    - velocity-platform-runner
-  script:
-    - make release
-  only:
-    variables:
-      - $CI_COMMIT_TAG =~ /\d+\.\d+\.\d+/
+  extends: .release-changelog

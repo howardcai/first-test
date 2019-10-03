@@ -8,24 +8,15 @@
 # Descriptor Socket Client Library Makefile.
 #
 
-#
-# Construct the VERSION to use in the rest of the build
-#
-ifdef GITLAB_CI
-# If we're building under GitLab-CI, check if the git ref is a tag which matches the symver spec.
-SYMVER          := $(shell echo $(CI_COMMIT_REF_NAME) | grep -P '^\d+\.\d+\.\d+$$')
-ifneq ($(SYMVER),)
-VERSION         := $(SYMVER)
-else
-# Otherwise use <an abbreviated ref name (usually the branch)>.<shortend commit sha>.<the build number>.
-REF_SLUG        := $(shell echo $(CI_COMMIT_REF_SLUG) | sed 's/-/_/g')
-COMMIT_SHA      := $(shell echo $(CI_COMMIT_SHA) | cut -c -8)
-VERSION         := $(REF_SLUG).$(COMMIT_SHA).$(CI_PIPELINE_IID)
-endif
-# Otherwise this is not a GitLab-CI build. Use the local user login and date.
-else
-VERSION         ?= $(shell whoami).$(shell date +%Y%m%d.%H%M%S)
-endif
+# This script will populate the following:
+#   PROJECT --> as defined in project.config
+#   ARTIFACT_TYPE --> as defined in project.config
+#   VERSION
+#   RELEASE_TIER
+#   ARTIFACT_PROPERTIES
+#   ARTIFACTORY_URL
+#   ARTIFACTORY_METADATA_URL
+include $(F5BUILD)Include.mk
 
 BUILD_DATE      := $(shell date +%c)
 
@@ -108,35 +99,8 @@ $(RPM_BUILD_DIR):
 # testing, housekeeping, etc.
 #
 
-ARTIFACT_URL          := https://artifactory.pdsea.f5net.com/artifactory/velocity-platform-rpm-dev/descsock-client-lib
-ARTIFACT_METADATA_URL := https://artifactory.f5net.com/artifactory/api/metadata/velocity-platform-rpm-dev/descsock-client-lib
-
-# Construct the Artifactory metadata properties as required.
-ifdef GITLAB_CI
-PROP_SOURCE       := "$(CI_PROJECT_URL)"
-PROP_BRANCH       := "$(CI_COMMIT_REF_NAME)"
-PROP_COMMIT       := "$(CI_COMMIT_SHA)"
-PROP_VERSION      := "$(VERSION)"
-PROP_PIPELINE     := "$(CI_PIPELINE_URL)"
-PROP_USER         := "$(GITLAB_USER_EMAIL)"
-else
-PROP_SOURCE       ?= "local-dev-build"
-PROP_BRANCH       ?= ""
-PROP_COMMIT       ?= ""
-PROP_VERSION      ?= "$(VERSION)"
-PROP_PIPELINE     ?= "$(MAKE) $(MAKEFLAGS) $(MAKECMDGOALS)"
-PROP_USER         ?= "$(shell whoami)@$(shell hostname)"
-endif
-ARTIFACT_PROPERTIES := '{"props": {\
-    "f5.build.source":$(PROP_SOURCE),\
-    "f5.build.branch":$(PROP_BRANCH),\
-    "f5.build.commit":$(PROP_COMMIT),\
-    "f5.build.version":$(PROP_VERSION),\
-    "f5.build.pipeline":$(PROP_PIPELINE),\
-    "f5.build.user":$(PROP_USER) }}'
-
-ARTIFACT_RPM_URL                := $(ARTIFACT_URL)/$(RPM_FNAME)
-ARTIFACT_RPM_METADATA_URL       := $(ARTIFACT_METADATA_URL)/$(RPM_FNAME)
+ARTIFACT_RPM_URL                := $(ARTIFACTORY_URL)/$(RPM_FNAME)
+ARTIFACT_RPM_METADATA_URL       := $(ARTIFACTORY_METADATA_URL)/$(RPM_FNAME)
 
 .PHONY: publish
 publish: $(RPM)	## Publish RPMs to Artifactory. Will create RPMs if necessary.
@@ -147,17 +111,6 @@ else
 	curl -u$(ARTIFACTORY_AUTH) -XPUT $(ARTIFACT_RPM_URL) -T $(RPM)
 	curl -u$(ARTIFACTORY_AUTH) -XPATCH -H "Content-Type: application/json" \
 	    -d $(ARTIFACT_PROPERTIES) $(ARTIFACT_RPM_METADATA_URL)
-endif
-
-.PHONY: release
-release: ## Mark RPM as a release. Should only be used from GitLab-CI context.
-# Artifactory credentials are expected to come from the environment via a GitLab "secret variable" setting.
-ifndef ARTIFACTORY_AUTH
-	$(error Missing ARTIFACTORY_AUTH credentials)
-else
-	curl --header "PRIVATE-TOKEN: $(GITLAB_AUTH_TOKEN)" -XPOST \
-	    --data name="RPM Package" --data url="$(ARTIFACT_RPM_URL)" \
-	    "https://gitlab.f5net.com/api/v4/projects/$(CI_PROJECT_ID)/releases/$(VERSION)/assets/links"
 endif
 
 .PHONY: cppcheck
