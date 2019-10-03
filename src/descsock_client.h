@@ -186,6 +186,14 @@ int descsock_client_poll(int event_mask);
  */
 ssize_t descsock_client_send(void *buf, const uint64_t len, const int flags);
 
+struct ifh_data {
+    uint32_t    did;
+    uint32_t    sep;
+    uint32_t    svc;
+    uint32_t    tier;
+};
+
+ssize_t descsock_client_send_extended(void *buf, const uint64_t len, const int flags, struct ifh_data *d);
 
 /*
  * Takes a @buf and a corresponding @len and copies into it the next ready frame
