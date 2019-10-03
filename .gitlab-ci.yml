@@ -14,8 +14,12 @@ stages:
 #   - release
 
 temporary:
-  - ${F5BUILD}include.sh
-  - make
+  stage: temporary
+  tags:
+    - velocity-platform-runner
+  script:
+    - ${F5BUILD}include.sh
+    - make
 
 # before_script:
 #   - source /opt/rh/devtoolset-7/enable
