@@ -1,50 +1,65 @@
-image: artifactory.f5net.com/velocity-platform-docker-dev/datapath-builder:1.5.3
+image: artifactory.f5net.com/velocity-platform-docker-dev/datapath-builder:1.6.1
+
+# This is the source for the prepare and release stages of the pipeline.
+# include:
+#   project: velocity/common/platform-semrel
+#   file: ci-include/v1/semrel.yml
 
 stages:
-  - quality
-  - build
-  - publish
-  - release
+  - temporary
+#   - prepare
+#   - quality
+#   - build
+#   - publish
+#   - release
 
-before_script:
-  - source /opt/rh/devtoolset-7/enable
+temporary:
+  - ${F5BUILD}include.sh
+  - make
 
-quality:
-  stage: quality
-  tags:
-    - velocity-platform-runner
-  script:
-    - make cppcheck
+# before_script:
+#   - source /opt/rh/devtoolset-7/enable
 
-build:
-  stage: build
-  tags:
-     - velocity-platform-runner
-  script:
-    - make
-    - make rpm
-  artifacts:
-    paths:
-      - obj
-      - rpmbuild/RPMS/x86_64
-    expire_in: 1 day
+# prepare:version:
+#   stage: prepare
+#   extends: .release-prepare
 
-publish:
-  stage: publish
-  tags:
-    - velocity-platform-runner
-  script:
-    - make publish
-  only:
-    variables:
-      - $CI_COMMIT_TAG =~ /\d+\.\d+\.\d+/
+# quality:
+#   stage: quality
+#   tags:
+#     - velocity-platform-runner
+#   script:
+#     - make cppcheck
 
-release:
-  stage: release
-  tags:
-    - velocity-platform-runner
-  script:
-    - make release
-  only:
-    variables:
-      - $CI_COMMIT_TAG =~ /\d+\.\d+\.\d+/
+# build:
+#   stage: build
+#   tags:
+#      - velocity-platform-runner
+#   script:
+#     - make
+#     - make rpm
+#   artifacts:
+#     paths:
+#       - obj
+#       - rpmbuild/RPMS/x86_64
+#     expire_in: 1 day
+
+# publish:
+#   stage: publish
+#   tags:
+#     - velocity-platform-runner
+#   script:
+#     - make publish
+#   only:
+#     variables:
+#       - $CI_COMMIT_TAG =~ /\d+\.\d+\.\d+/
+
+# release:
+#   stage: release
+#   tags:
+#     - velocity-platform-runner
+#   script:
+#     - make release
+#   only:
+#     variables:
+#       - $CI_COMMIT_TAG =~ /\d+\.\d+\.\d+/
