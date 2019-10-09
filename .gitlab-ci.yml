@@ -52,13 +52,5 @@ publish:
 release:changelog:
   stage: release
   extends: .release-changelog
-
-release:assets:
-  stage: release
-  tags:
-    - velocity-platform-runner
-  script:
+  after_script:
     - make release
-  only:
-    refs:
-      - master
