@@ -2,6 +2,14 @@
 
 <!--- next entry here -->
 
+## 1.0.1
+2019-10-09
+
+### Fixes
+
+- adding functionality of asset being added to release notes. (8b1726be3f82755af222f3a000b1ceb5778e2769)
+- Merge branch 'asset-release' into 'master' (92c1b4b77f9ad02ebc9fb02646d8baaf91b74dfe)
+
 ## 1.0.0
 2019-10-03
 
