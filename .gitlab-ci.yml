@@ -11,6 +11,7 @@ stages:
   - build
   - publish
   - release
+  - release assets
 
 before_script:
   - source /opt/rh/devtoolset-7/enable
@@ -52,5 +53,13 @@ publish:
 release:changelog:
   stage: release
   extends: .release-changelog
-  after_script:
+
+release assets:
+  stage: release assets
+  tags:
+    - velocity-platform-runner
+  script:
     - make release
+  only:
+    refs:
+      - master
