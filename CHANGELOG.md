@@ -2,6 +2,14 @@
 
 <!--- next entry here -->
 
+## 1.0.3
+2019-10-09
+
+### Fixes
+
+- continued work for release of assets (0447c5fe7321803647de9048cbf50d41b2c05c91)
+- Merge branch 'asset-release' into 'master' (1e99384d5bea57013b5ebaa8800358d05a10067a)
+
 ## 1.0.2
 2019-10-09
 
