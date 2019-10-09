@@ -113,6 +113,18 @@ else
 	    -d $(ARTIFACT_PROPERTIES) $(ARTIFACT_RPM_METADATA_URL)
 endif
 
+.PHONY: release
+release: ## Mark RPM as a release. Should only be used from GitLab-CI context.
+# Artifactory credentials are expected to come from the environment via a GitLab "secret variable" setting.
+ifndef ARTIFACTORY_AUTH
+	$(error Missing ARTIFACTORY_AUTH credentials)
+else
+	curl --header "PRIVATE-TOKEN: $(GITLAB_AUTH_TOKEN)" -XPOST \
+	    --data name="RPM Package" --data url="$(ARTIFACT_RPM_URL)" \
+	    "https://gitlab.f5net.com/api/v4/projects/$(CI_PROJECT_ID)/releases/$(VERSION)/assets/links"
+endif
+
+
 .PHONY: cppcheck
 cppcheck: ## Run cppcheck static analysis on source.
 	cppcheck --enable=performance --error-exitcode=1 ${SRC_DIR}
