@@ -124,7 +124,6 @@ else
 	    "https://gitlab.f5net.com/api/v4/projects/$(CI_PROJECT_ID)/releases/$(VERSION)/assets/links"
 endif
 
-
 .PHONY: cppcheck
 cppcheck: ## Run cppcheck static analysis on source.
 	cppcheck --enable=performance --error-exitcode=1 ${SRC_DIR}
