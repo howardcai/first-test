@@ -2,6 +2,14 @@
 
 <!--- next entry here -->
 
+## 1.0.2
+2019-10-09
+
+### Fixes
+
+- Continued work towards getting make release to properly run (ff9ae6e82c0526f73d0eb1a3e048dfdbee2de381)
+- Merge branch 'asset-release' into 'master' (187843e2382ddacede3603383ef7bca24f057f02)
+
 ## 1.0.1
 2019-10-09
 
