@@ -42,13 +42,19 @@ libraryH := $(addprefix $(SRC_DIR)/, descsock.h descsock_client.h common.h err.h
 libraryO := $(libraryC:.c=.o)
 publicH  := $(addprefix $(SRC_DIR)/, descsock_client.h)
 publicO  := $(addprefix $(OBJ_DIR)/, libdescsock-client.so libdescsock-client.a)
+## Test client
 exampleC := test_client.c
 exampleO := test_client
+## Test TAP tenant
+tapTenantC := tap_tenant.c
+tapTenantO := tap_tenant
+
 
 .PHONY: all library
 all: library ## Build library (default)
-library: $(publicO) $(publicH) ## Build static and dynamic libraries.
-example: library $(exampleO)  ## Build example test program. Assumes RPM has been installed.
+library: $(publicO) $(publicH) 		## Build static and dynamic libraries.
+example: library $(exampleO)  		## Build example test program. Assumes RPM has been installed.
+tap_tenant: library $(tapTenantO)  	## Build example tap tenant. Assumes RPM has been installed.
 
 $(OBJ_DIR)/libdescsock-client.so: $(libraryO) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(FLAGS_SHARED) -o $@  $^
@@ -60,7 +66,10 @@ $(libraryO): %.o:%.c
 	$(CC) $(CFLAGS) $(FLAGS_STATIC) -o $@ $<
 
 $(exampleO): $(exampleC)
-	$(CC) $(CFLAGS) -ldescsock-client -o $@ $^
+	$(CC) $(CFLAGS) -g -ldescsock-client -o $@ $^
+
+$(tapTenantO): $(tapTenantC)
+	$(CC) $(CFLAGS) -g -ldescsock-client -o $@ $(tapTenantC)
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
