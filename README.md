@@ -6,7 +6,7 @@
 make rpm
 sudo rpm -i rpmbuild/RPMS/x86_64/libdescsock-client-THEVERSION-dev.x86_64.rpm
 make example
-./test_client
+./test_client  
 ```
 ***
 <br />
