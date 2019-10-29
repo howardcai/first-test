@@ -126,7 +126,7 @@ typedef struct {
 /*
  * Flag bits for open / send / recv @flags argument.
  */
-#define DESCOCK_NONBLOCK    (1 << 0)
+#define DESCSOCK_NONBLOCK    (1 << 0)
 
 
 /*
@@ -140,7 +140,7 @@ typedef struct {
 
 /*
  * Opens a new tenant datapath connection into the DMA agent, as specified
- * by @spec (see definition of descock_client_spec_t above), and starts
+ * by @spec (see definition of descsock_client_spec_t above), and starts
  * the client library worker thread. The @flags argument can be used
  * to set default flags applied to all subsequent descsock_client_send() and
  * descosck_recv() calls.
