@@ -2,6 +2,13 @@
 
 <!--- next entry here -->
 
+## 1.1.0
+2019-10-29
+
+### Features
+
+- readme (70c877d1e43ae4932dd81a90f6d9a8d0b95d49b5)
+
 ## 1.0.3
 2019-10-09
 
