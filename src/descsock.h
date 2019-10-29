@@ -64,38 +64,58 @@ typedef struct {
             len      : 16;
 } empty_buf_desc_t;
 
+typedef union {
+    /* Transmit descriptor flags */
+    struct {
+    UINT8      l3csum_ok        : 1,
+            l4csum_ok        : 1,
+            snoop            : 1,
+            l2_override      : 1,
+            wait             : 1,
+                             : 3;
+    };
+    UINT8     u8;
+} tx_desc_flags_t;
+
+
 typedef struct {
     /* 0x00 */
-    UINT64 addr     : 48,
-        len         : 16;
+    UINT64 addr  : 48,
+        len   : 16;
 
-    UINT32 type     : 3,
-        eop         : 1,
-        sop         : 1,
-        flags       : 16,
-        did         : 11;
+    UINT32 type  : 3,
+              : 1,
+        host  : 1,
+        eop   : 1,
+        sop   : 1,
+        err   : 1,
+        flags : 8,
+        did   : 11,
+              : 5;
 
-    UINT32 sep      : 4,
-        dm          : 2,
-        svc         : 14,
-        nti         : 12;
+    UINT32 sep   : 4,
+        dm    : 2,
+        svc   : 14,
+        nti   : 12;
 
     /* 0x10 */
-    UINT32 tc       : 8,
-        wl_hits     : 5,
-                    : 7,
-        dos_vec     : 8,
-        dos_act     : 3,
-        dos_wl      : 1;
+    UINT32 tc      : 8,
+        wl_hits : 5,
+                : 7,
+        dos_vec : 8,
+        dos_act : 3,
+        dos_wl  : 1;
 
-    UINT32 epva_hash    : 24,
-        spva_res        : 8;
+    UINT32 epva_hash : 24,
+        spva_res  : 8;
 
-    UINT32 lro_hints    : 20,
-                        : 12;
+    UINT32 lro_hints : 20,
+                  : 12;
 
     UINT32 resv3;
 } laden_buf_desc_t;
+
+
 
 /* Ring metadata */
 #define EMPTY_DESC_LEN              sizeof(empty_buf_desc_t)
@@ -236,7 +256,7 @@ err_t descsock_teardown(void);
  */
 BOOL descsock_poll(int event_mask);
 int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id);
-int descsock_send(void *handle, UINT32 len);
+int descsock_send(dsk_ifh_fields_t *ifh, void *buf, UINT32 len);
 int descsock_recv(void *buf, UINT32 len, int flag);
 BOOL descsock_state_full(void);
 BOOL descsock_state_err(void);

@@ -32,7 +32,7 @@
 /*
  * Internal driver functions
  */
-static err_t descsock_ifoutput(struct packet *pkt, int *writen_bytes);
+static err_t descsock_ifoutput(struct packet *pkt, dsk_ifh_fields_t *ifh, int *written_bytes);
 static err_t descsock_config_exchange(char * dmapath);
 static int descsock_establish_dmaa_conn(void);
 static void descsock_partition_sockets(int socks[], int rx[], int tx[]);
@@ -61,7 +61,7 @@ static inline int tx_receive_advance_consumer(UINT32 tier, int max);
 static inline int flush_bytes_to_socket(UINT32 tx, int qos);
 static inline err_t tx_send_advance_producer(UINT32 tier);
 static inline int tx_send_advance_consumer(UINT32 tier);
-static int descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier);
+static int descsock_tx_single_desc_pkt(struct packet *pkt, dsk_ifh_fields_t *ifh, UINT32 tier);
 static inline int rx_send_advance_producer(UINT16 tier, int max);
 static inline int rx_send_advance_consumer(int tier);
 static inline void clean_tx_completions(UINT16 tier);
@@ -91,12 +91,24 @@ int  empty_desc_fifo_avail(empty_desc_fifo_t *fifo);
  * Main structure used as core of the framework
  */
 struct descsock_softc *sc  = NULL;
-extern volatile descsock_client_stats_t  descsock_client_stats;
 
+/* Stats shared between client and descosck lib */
+descsock_client_stats_t  descsock_client_stats = {
+        .rx_packets_in = 0,
+        .rx_packets_out = 0,
+        .rx_bytes_in = 0,
+        .rx_bytes_out = 0,
+        .rx_fc_drops = 0,
+        .tx_packets_in = 0,
+        .tx_packets_out = 0,
+        .tx_bytes_in = 0,
+        .tx_bytes_in = 0,
+        .tx_bytes_out = 0,
+};
 
 /*
- * Start descsock framewor, Allocate DMA memory, send config message to DMAA
- * Returns 1 on success, -1 on failuer
+ * Start descsock framework, Allocate DMA memory, send config message to DMAA
+ * Returns 1 on success, -1 on failure
  */
 int
 descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
@@ -326,12 +338,12 @@ BOOL descsock_state_full()
  * Send a buf owned by descsock client
  * Returns the number of bytes sent
  */
-int descsock_send(void *buf, UINT32 len)
+int descsock_send(dsk_ifh_fields_t *ifh, void *buf, UINT32 len)
 {
     err_t err = ERR_OK;
     struct xfrag *xf = NULL;
     struct packet *pkt = NULL;
-    int writen_bytes = 0;
+    int written_bytes = 0;
     bool rx = false;
 
     if(sc == NULL || sc->state != DESCSOCK_UP) {
@@ -345,7 +357,7 @@ int descsock_send(void *buf, UINT32 len)
         return -1;
     }
 
-    //XXX: Validate buf from client, maybe get vlan info from buf?
+    /* XXX: Validate buf from client, maybe get vlan info from buf? */
     pkt = packet_alloc();
     if(pkt == NULL) {
         DESCSOCK_LOG("Failed to alloc packet\n");
@@ -374,13 +386,13 @@ int descsock_send(void *buf, UINT32 len)
     pkt->xf_first = xf;
     pkt->len = len;
 
-    err = descsock_ifoutput(pkt, &writen_bytes);
+    err = descsock_ifoutput(pkt, ifh, &written_bytes);
 
     if(err != ERR_OK) {
         goto err_out;
     }
 
-    return writen_bytes;
+    return written_bytes;
 
 err_out:
 
@@ -391,8 +403,9 @@ err_out:
         xfrag_free(xf, rx);
     }
 
-    return writen_bytes;
+    return written_bytes;
 }
+
 
 /*
  * Returns number of bytes read, or 0 if no rx packets
@@ -495,7 +508,6 @@ descsock_poll(int mask) {
          */
         avail = rx_receive_advance_producer(tier);
 
-
         /* if not packets have arrived on this tier, poll the next one */
         if(avail == 0) {
             continue;
@@ -506,7 +518,6 @@ descsock_poll(int mask) {
             DESCSOCK_LOG("Error reading from socket on tier %d\n", tier);
             goto out;
         }
-
         /* Go through all received descriptors */
         while(!FIXEDQ_EMPTY(sc->rx_queue.complete_pkt[tier])) {
 
@@ -546,7 +557,7 @@ descsock_poll(int mask) {
 
             /* add pkt to rx ready to consume queueu */
             if(FIXEDQ_FULL(sc->rx_queue.rx_pkt_queue)) {
-                DESCSOCK_LOG("Rx queue is full dropping rx packet\n");
+                DESCSOCK_LOG("Rx queue is full dropping rx packet");
                 sc->stats.pkt_drop++;
                 goto out;
             }
@@ -566,6 +577,7 @@ descsock_poll(int mask) {
 
         err = descsock_refill_rx_slots(tier, avail);
         if(err != ERR_OK) {
+            DESCSOCK_LOG("Failed to refill producer bufs");
             return FALSE;
         }
     }
@@ -581,10 +593,10 @@ out:
  * TX
  * Send packet out, flush send descriptor
  * Returns OK if packet was sent, also sets the number of bytes writen in
- * @writen_bytes
+ * @written_bytes
  */
 err_t
-descsock_ifoutput(struct packet *pkt, int *writen_bytes)
+descsock_ifoutput(struct packet *pkt, dsk_ifh_fields_t *ifh, int *written_bytes)
 {
     err_t err = ERR_OK;
     int bytes_avail;
@@ -602,15 +614,15 @@ descsock_ifoutput(struct packet *pkt, int *writen_bytes)
     }
 
     /* flush send descriptor to socket */
-    *writen_bytes = descsock_tx_single_desc_pkt(pkt, tier);
+    *written_bytes = descsock_tx_single_desc_pkt(pkt, ifh, tier);
 
-    if(*writen_bytes == 0) {
+    if(*written_bytes == 0) {
         /* EWOULDBLOCK or try again  */
         err = ERR_WOULDBLOCK;
         goto out;
     }
 
-    if(*writen_bytes == -1) {
+    if(*written_bytes == -1) {
         /* Error writing to socket */
         err = ERR_IO;
         goto out;
@@ -618,10 +630,8 @@ descsock_ifoutput(struct packet *pkt, int *writen_bytes)
 
     sc->stats.pkt_tx += 1;
     sc->stats.tx_descs += 1;
-    // descsock_client_stats.rx_bytes_out += *writen_bytes;
-    // descsock_client_stats.rx_packets_out++;
-    // descsock_client_stats.tx_bytes_out += *writen_bytes;
-
+    descsock_client_stats.tx_bytes_out += *written_bytes;
+    descsock_client_stats.tx_packets_out++;
     DESCSOCK_DEBUGF("sendring cons:%d prod:%d", tx_out_fifo->cons_idx, tx_out_fifo->prod_idx);
 
 out:
@@ -634,11 +644,8 @@ out:
  */
 
 static int
-descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
+descsock_tx_single_desc_pkt(struct packet *pkt, dsk_ifh_fields_t *ifh, UINT32 tier)
 {
-
-    UINT16 vlan_tag = 0;
-    err_t err = ERR_OK;
     int sent = 0;
     tx_completions_ctx_t *clean_ctx;
     laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
@@ -646,21 +653,29 @@ descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
 
     /* Get buf data from packet */
     send_desc->addr = (UINT64) pkt->xf_first->data;
-    send_desc->len = pkt->len + ETHER_CRC_LEN;
     send_desc->type = TX_BUF;
     send_desc->sop = 1;
     send_desc->eop = 1;
+    send_desc->len = pkt->len;
 
-    /* XXX: Get DID from a vlan tag */
-    //err = descsock_get_vlantag(pkt, &vlan_tag);
-    if(err == ERR_OK) {
-        if(sc->descsock_l2_override) {
-            send_desc->did = DESCSOCK_SET_DID(vlan_tag);
-            /* Set the DIR flag in descriptor */
-            send_desc->flags |= (1 << 8);
-            //vlan_insert_tag(pkt, vlan_tag, TRUE);
-            /* descsock_print_pkt(pkt); */
-        }
+    /* Add ifh fields if needed */
+    if(ifh != NULL) {
+        send_desc->did = ifh->did;
+        send_desc->sep = ifh->sep;
+        send_desc->svc = ifh->svc;
+        send_desc->nti = ifh->nti;
+        /* Set the DIR flag in descriptor */
+        send_desc->flags |= (1 << 8);
+    }
+
+    /* Check if this packet is less than 64 bytes */
+    if(send_desc->len  < (ETHER_MIN_LEN - ETHER_CRC_LEN)) {
+        /* pad to min DM tx packet size. */
+        send_desc->len = (ETHER_MIN_LEN);
+    }
+    else {
+        /* add 4 extra bytes to create space for CRC. */
+        send_desc->len = pkt->len + ETHER_CRC_LEN;
     }
 
     /*
@@ -671,7 +686,7 @@ descsock_tx_single_desc_pkt(struct packet *pkt, UINT32 tier)
     if(clean_ctx == NULL) {
         /* tx completions queue is full */
         DESCSOCK_DEBUGF("clean ctx fifo is full\n");
-        return ERR_BUF;
+        return 0;
     }
 
     clean_ctx->desc = send_desc;
@@ -916,6 +931,10 @@ rx_receive_advance_producer(UINT32 tier)
     }
 
     desc_count = descsock_count_pkts_from_fifo(rx_in_fifo, bytes_avail, &pkt_count);
+    if(desc_count == 0) {
+        DESCSOCK_LOG("Descriptor format type mismatch?");
+        return 0;
+    }
 
     for(i = 0; i < desc_count; i++) {
         if(FIXEDQ_FULL(sc->rx_queue.complete_pkt[tier])) {
@@ -1242,7 +1261,7 @@ refill_inbound_fifo_from_socket(UINT32 tx, UINT32 qos)
 
     /* Make the socket I/O call */
     advance = descsock_readv_file(fd, iov, (1 + ring_wrap));
-    DESCSOCK_DEBUGF("read bytes %d\n", advance);
+    DESCSOCK_DEBUGF("read bytes %d qos %d\n", advance, qos);
     if (advance > 0) {
         /* We read bytes from socket, advance the producer idx */
         *ptr_prod = (prod_idx + advance) & ring_mask;
