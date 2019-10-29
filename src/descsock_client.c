@@ -35,6 +35,8 @@ static struct client_config {
     .svc_id = 0,
 };
 
+//descsock_client_stats_t  *descsock_client_stats;
+
 static int init_descosck_lib(void);
 
 /*
@@ -109,9 +111,8 @@ descsock_client_poll(int event_mask)
 
     /* Check for received packets */
     bool readable = descsock_poll(event_mask);
-
     if((readable) && (event_mask & DESCSOCK_POLLIN)) {
-        // There is data to be read
+        /* Set flag indicating data is available */
         flags |= DESCSOCK_POLLIN;
     }
 
@@ -126,7 +127,11 @@ ssize_t
 descsock_client_send(void *buf, const uint64_t len, const int flags)
 {
     /* call descsock_ifoutput sending buf to dma agent */
-    int sent = descsock_send(buf, len);
+    int sent = descsock_send(NULL, buf, len);
+    if(sent != 0) {
+        descsock_client_stats.tx_bytes_in += len;
+        descsock_client_stats.tx_packets_in++;
+    }
 
     return sent;
 }
@@ -138,7 +143,12 @@ descsock_client_send(void *buf, const uint64_t len, const int flags)
 ssize_t
 descsock_client_recv(void *buf, const uint64_t len, const int flags)
 {
-    return descsock_recv(buf, DESCSOCK_CLIENT_BUF_SIZE, 0);
+    int read_bytes = descsock_recv(buf, DESCSOCK_CLIENT_BUF_SIZE, 0);
+    if(read_bytes != 0) {
+        descsock_client_stats.rx_bytes_out += read_bytes;
+        descsock_client_stats.rx_packets_out++;
+    }
+    return read_bytes;
 }
 
 /* Future implementation */
@@ -155,4 +165,19 @@ descsock_client_close(void)
     descsock_teardown();
 
     return 0;
+}
+
+/*
+ * Set IFH fields in send descriptor
+ */
+ssize_t
+descsock_client_send_extended(dsk_ifh_fields_t *ifh, void *buf, const uint64_t len, const int flags)
+{
+    int written = descsock_send(ifh, buf, len);
+    if(written != 0) {
+        descsock_client_stats.tx_bytes_in += len;
+        descsock_client_stats.tx_packets_in++;
+    }
+
+    return written;
 }

@@ -1,10 +1,10 @@
 [![pipeline status](https://gitlab.f5net.com/datapath/generic-descsock-library/badges/master/pipeline.svg)](https://gitlab.f5net.com/datapath/generic-descsock-library/commits/master)
 <br />
 ### GENERAL USAGE
-*See `test_client.c` for an example*
+*See `test_client.c` or `tap_tenant.c` for an example*
 ```
 make rpm
-sudo rpm -i rpmbuild/RPMS/x86_64/libdescsock-client-THEVERSION-dev.x86_64.rpm 
+sudo rpm -i rpmbuild/RPMS/x86_64/libdescsock-client-THEVERSION-dev.x86_64.rpm
 make example
 ./test_client
 ```

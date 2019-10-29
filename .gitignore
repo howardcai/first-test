@@ -2,6 +2,7 @@
 /obj/*
 /rpmbuild/*
 test_client
+tap_tenant
 
 # Exclude other junk
 ddmaa_doorbell.sock

@@ -22,5 +22,10 @@
 #define DESCSOCK_DEBUGF(fmt, rest...) ({if(DESCSOCK_DEBUG_PRINT) { printf("%s():%d " fmt "\n", __FUNCTION__, __LINE__, ##rest); }})
 #define DESCSOCK_LOG(fmt, rest...) printf("descsock: " fmt "\n", ##rest);
 
+/*
+ * The minimum packet length.
+ */
+#define ETHER_MIN_LEN       64
+
 
 #endif /* __COMMON_H__ */

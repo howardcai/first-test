@@ -92,14 +92,15 @@ typedef struct {
      * (as a result of calling descsoc_send()).
      */
     uint64_t    tx_bytes_out;
+
 } descsock_client_stats_t;
 
 
 /*
- * This extern pointer is set and managed by the descsock client library internally, for client
+ * This extern struct is set and managed by the descsock client library internally, for client
  * consumption, and the pointed-to data updated in lively manner by the library worker thread.
  */
-extern volatile descsock_client_stats_t descsock_client_stats;
+extern descsock_client_stats_t descsock_client_stats;
 
 typedef struct {
     /*
@@ -186,14 +187,18 @@ int descsock_client_poll(int event_mask);
  */
 ssize_t descsock_client_send(void *buf, const uint64_t len, const int flags);
 
-struct ifh_data {
+/*
+ * Directed override send function, IFH fields can be used for modifying send descriptor directly
+ */
+typedef struct {
     uint32_t    did;
     uint32_t    sep;
     uint32_t    svc;
-    uint32_t    tier;
-};
-
-ssize_t descsock_client_send_extended(void *buf, const uint64_t len, const int flags, struct ifh_data *d);
+    uint32_t    qos_tier;
+    uint32_t    nti;
+    uint32_t    dm;
+} dsk_ifh_fields_t;
+ssize_t descsock_client_send_extended(dsk_ifh_fields_t *ifh, void *buf, const uint64_t len, const int flags);
 
 /*
  * Takes a @buf and a corresponding @len and copies into it the next ready frame
@@ -232,5 +237,6 @@ int descsock_client_ctrl(const int cmd, ...);
  * Returns 0 on success, -1 on failure and errno will be set appropriately.
  */
 int descsock_client_close(void);
+
 
 #endif
