@@ -142,6 +142,8 @@ clean:  ## Remove all built binaries and RPMs.
 	rm -rf $(OBJ_DIR)
 	rm -f  $(SRC_DIR)/*.o
 	rm -rf $(RPM_BUILD_DIR)
+	rm -rf tap_tenant
+	rm -rf test_client
 
 # Self-documenting Makefile hack. Prefix comments after targets with "##" to include in help output.
 .PHONY: help

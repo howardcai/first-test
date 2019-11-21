@@ -27,6 +27,7 @@
 #include "packet.h"
 #include "xfrag_mem.h"
 #include "descsock.h"
+#include "f5_datapath_connection.h"
 
 
 /*
@@ -720,48 +721,52 @@ descsock_config_exchange(char * dmapath)
     int num_fds = 0;
     struct epoll_event ev;
     struct epoll_event events[2];
+    f5_tenant_request_t request;
+    f5_tenant_response_t response;
 
-    DESCSOCK_DEBUGF("Sending message to dmaa %s", dmapath);
+    /*
+     * Fill out request to send out
+     */
+    strcpy(request.sys_conn_rqst.service_name, "descsock_lib");
+    strcpy(request.sys_conn_rqst.path, sc->dma_region.path);
+    request.sys_conn_rqst.base = sc->dma_region.base;
+    request.sys_conn_rqst.length = sc->dma_region.len;
+    request.sys_conn_rqst.num_sep = 1;
+    request.sys_conn_rqst.pid = getpid();
+    request.sys_conn_rqst.svc_ids[0] = 99;
 
-    n = descsock_socket_write(sc->master_socket_fd, dmapath, DESCSOCK_PATHLEN);
+
+    //DESCSOCK_DEBUGF("Sending message to dmaa %s", dmapath);
+
+    n = descsock_socket_write(sc->master_socket_fd, &request, sizeof(request));
     DESCSOCK_DEBUGF("bytes written %d\n", n);
-    if(n < 0 ) {
+    if(n != sizeof(request)) {
         DESCSOCK_DEBUGF("Error writing to master socket fd %d", sc->master_socket_fd);
         err = ERR_BUF;
         goto out;
     }
 
-    epfd = descsock_epoll_create(1);
-    if(epfd < 0) {
-        DESCSOCK_DEBUGF("Error epfd: descsock_config_exchange()");
-        err = ERR_BUF;
-        goto out;
-    }
-    /* Single event to register for and listen on doorbell socket */
-    ev.data.fd = sc->master_socket_fd;
-    ev.events = EPOLLIN;
+    /*
+     * Wait for response from cpproxy
+     */
+    recv(sc->master_socket_fd, &response, sizeof(response));
 
-    res = descsock_epoll_ctl(epfd, EPOLL_CTL_ADD, ev.data.fd, &ev);
-    if(res < 0){
-        DESCSOCK_LOG("Error descsock_epoll_ctl");
-        err = ERR_BUF;
-        goto out;
-    }
+    /* XXX: validate response */
 
-    while (num_fds == 0) {
-        DESCSOCK_LOG("driver waiting for FDs");
-        /* Wait 10 seconds */
-        num_fds = descsock_epoll_wait(epfd, events, 1, (10 * 1000));
-        if (num_fds < 0) {
-            DESCSOCK_LOG("error on epoll_wait");
-            err = ERR_BUF;
-            goto out;
-        }
-    }
-    DESCSOCK_DEBUGF("number of events: %d", num_fds);
+    //int correct_msg_len = sizeof(response) + (num_socks * sizeof(struct msghdr));
+    printf("%d\n", response.header.msg_length);
+    printf("%d\n", response.header.version);
+    printf("%d\n", response.header.type);
+    printf("%d\n", response.header.magic);
+
+    printf("%d\n", response.conn_resp.error_code);
+    printf("%d\n", response.conn_resp.dm_offset);
+    printf("%d\n", response.conn_resp.num_dms);
+    printf("%d\n", response.conn_resp.num_fds);
+
 
     /* receive sockets fds, and add them to the sc->sock_fd array */
-    err = descsock_recv_socket_conns(events[0].data.fd, sc->sock_fd);
+    err = descsock_recv_socket_conns(sc->master_socket_fd, sc->sock_fd);
     if(err != ERR_OK) {
         DESCSOCK_LOG("Failed to receive Rx, Tx sockets");
         err = ERR_CONN;

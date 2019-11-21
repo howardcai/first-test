@@ -3,16 +3,16 @@
 # Startup flags for chroot-like behavior when running the dma-agent-builder environment. By default, it will
 # pull the 'latest' image from the registry. Override by setting VERSION in your environment.
 
-IMAGE="dma-agent-builder"
+IMAGE="datapath-builder"
 VERSION=${VERSION:-latest}
-RELEASE_TIER=${RELEASE_TIER:-"candidate"}
+RELEASE_TIER=${RELEASE_TIER:-"dev"}
 ARTIFACTORY_PATH='artifactory.f5net.com/velocity-platform-docker-'${RELEASE_TIER}
 IMAGE_REMOTE=${ARTIFACTORY_PATH}/${IMAGE}
 
 docker pull ${IMAGE_REMOTE}:${VERSION}
 
 docker run --interactive --tty --rm \
-    --name ${USER}-dsk-lib \
+    --name ${IMAGE}-${USER}-dsk-lib \
     --hostname ${USER}-dsk-lib \
     --user $(stat -c "%u:%g" $HOME) \
     --security-opt seccomp:unconfined \
