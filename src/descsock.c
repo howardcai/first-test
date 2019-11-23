@@ -125,11 +125,7 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
     descsock_conf.svc_ids = svc_id;
     descsock_conf.memsize = DESCSOCK_DMA_MEM_SIZE;
     descsock_conf.num_seps = 1;
-    /* size is in mb so we multiple to get mb */
-    //descsock_conf.dma_seg_size = (descsock_conf.memsize * 1024 * 1024);
-    descsock_conf.dma_seg_size = 2147483648;
-    /* align for unix page size */
-    //descsock_conf.dma_seg_size = ((descsock_conf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
+    descsock_conf.dma_seg_size = DESCSOCK_DMA_MEM_SIZE;
     DESCSOCK_LOG("Total mem allocated for descsock framework %lld\n", descsock_conf.dma_seg_size);
 
     sc = malloc(sizeof(struct descsock_softc));
@@ -205,7 +201,8 @@ descsock_init_conn()
     int i;
 
     /* Concatenate descsock.000 to path string to create hugepages path mount */
-    if (snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000", descsock_conf.hugepages_path) >= DESCSOCK_PATH_MAX)
+    if (snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000",
+        descsock_conf.hugepages_path) >= DESCSOCK_PATH_MAX)
     {
         DESCSOCK_LOG("Path to DMA segment too long.");
         goto err_out;
@@ -217,18 +214,9 @@ descsock_init_conn()
 
     /* try mmaping the passed in hugepages path */
     sc->dma_region.base = descsock_map_dmaregion(sc->dma_region.path, sc->dma_region.len);
-    printf("dma-base %p\n", sc->dma_region.base);
     if(sc->dma_region.base == NULL) {
         DESCSOCK_LOG("Failed to map hugepages.");
         err = ERR_CONN;
-        goto err_out;
-    }
-
-    /* Create message string to send to dmaa */
-    if (snprintf(msg, sizeof(msg), "path=%s\nbase=%llu\nlength=%llu\nnum_sep=1\npid=1\nsvc_ids=%d\n\n",
-             sc->dma_region.path, (UINT64)sc->dma_region.base, sc->dma_region.len, descsock_conf.svc_ids) >= sizeof(msg))
-    {
-        DESCSOCK_LOG("Registration message too long.");
         goto err_out;
     }
 
@@ -256,7 +244,6 @@ descsock_init_conn()
     }
 
     DESCSOCK_LOG("received master socket %d.", sc->master_socket_fd);
-    DESCSOCK_LOG("Sending msg to DMAA %s", msg);
 
     /* Send dma region path info to DMA AGENT */
     err = descsock_config_exchange(msg);
