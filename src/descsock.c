@@ -17,7 +17,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
-
+#include <sys/types.h>
+#include <sys/socket.h>
 #include "descsock_client.h"
 #include "common.h"
 #include "types.h"
@@ -125,10 +126,11 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
     descsock_conf.memsize = DESCSOCK_DMA_MEM_SIZE;
     descsock_conf.num_seps = 1;
     /* size is in mb so we multiple to get mb */
-    descsock_conf.dma_seg_size = (descsock_conf.memsize * 1024 * 1024);
+    //descsock_conf.dma_seg_size = (descsock_conf.memsize * 1024 * 1024);
+    descsock_conf.dma_seg_size = 2147483648;
     /* align for unix page size */
+    //descsock_conf.dma_seg_size = ((descsock_conf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
     DESCSOCK_LOG("Total mem allocated for descsock framework %lld\n", descsock_conf.dma_seg_size);
-    descsock_conf.dma_seg_size = ((descsock_conf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
 
     sc = malloc(sizeof(struct descsock_softc));
     if(sc == NULL) {
@@ -215,6 +217,7 @@ descsock_init_conn()
 
     /* try mmaping the passed in hugepages path */
     sc->dma_region.base = descsock_map_dmaregion(sc->dma_region.path, sc->dma_region.len);
+    printf("dma-base %p\n", sc->dma_region.base);
     if(sc->dma_region.base == NULL) {
         DESCSOCK_LOG("Failed to map hugepages.");
         err = ERR_CONN;
@@ -717,10 +720,7 @@ static err_t
 descsock_config_exchange(char * dmapath)
 {
     err_t err = ERR_OK;
-    int n, res, epfd, i;
-    int num_fds = 0;
-    struct epoll_event ev;
-    struct epoll_event events[2];
+    int n, i;
     f5_tenant_request_t request;
     f5_tenant_response_t response;
 
@@ -733,37 +733,61 @@ descsock_config_exchange(char * dmapath)
     request.sys_conn_rqst.length = sc->dma_region.len;
     request.sys_conn_rqst.num_sep = 1;
     request.sys_conn_rqst.pid = getpid();
-    request.sys_conn_rqst.svc_ids[0] = 99;
+    request.sys_conn_rqst.svc_ids[0] = 10;
+
+    request.header.version = F5DC_VERSION_2;
+    request.header.type = F5DC_T_CONN_REQ_SYSTEM;
+    request.header.msg_length = sizeof(request);
+    request.header.magic = F5DC_MAGIC;
+
+    printf("request\n");
+    printf("request.sys_conn_rqst.service_name %s\n", request.sys_conn_rqst.service_name);
+    printf("request.sys_conn_rqst.path %s\n", request.sys_conn_rqst.path);
+    printf("request.sys_conn_rqst.base %lld\n", request.sys_conn_rqst.base);
+    printf("request.sys_conn_rqst.length %lld\n", request.sys_conn_rqst.length);
+    printf("request.sys_conn_rqst.num_sep %d\n", request.sys_conn_rqst.num_sep);
+    printf("request.sys_conn_rqst.pid %d\n", request.sys_conn_rqst.pid);
+    printf("request.sys_conn_rqst.svc_ids[0] %d\n", request.sys_conn_rqst.svc_ids[0]);
+
+    printf("request.header.version %d\n", request.header.version);
+    printf("request.header.type %d\n", request.header.type);
+    printf("request.header.msg_length %d\n", request.header.msg_length);
+    printf("request.header.magic %d\n", request.header.magic);
 
 
     //DESCSOCK_DEBUGF("Sending message to dmaa %s", dmapath);
-
-    n = descsock_socket_write(sc->master_socket_fd, &request, sizeof(request));
-    DESCSOCK_DEBUGF("bytes written %d\n", n);
+    printf("Sending tenant request\n");
+    n = send(sc->master_socket_fd, &request, sizeof(request), 0);
+    DESCSOCK_LOG("bytes written %d\n", n);
     if(n != sizeof(request)) {
         DESCSOCK_DEBUGF("Error writing to master socket fd %d", sc->master_socket_fd);
         err = ERR_BUF;
         goto out;
     }
 
+    int num_socks = request.sys_conn_rqst.num_sep * NUM_TIERS * 2;
+
     /*
      * Wait for response from cpproxy
      */
-    recv(sc->master_socket_fd, &response, sizeof(response));
+    DESCSOCK_LOG("Waiting to receive message\n");
+    n = recv(sc->master_socket_fd, &response, sizeof(response), 0);
+    DESCSOCK_LOG("message received %d\n", n);
 
+    int correct_msg_len = sizeof(response) + (num_socks * sizeof(struct msghdr));
     /* XXX: validate response */
 
     //int correct_msg_len = sizeof(response) + (num_socks * sizeof(struct msghdr));
-    printf("%d\n", response.header.msg_length);
-    printf("%d\n", response.header.version);
-    printf("%d\n", response.header.type);
-    printf("%d\n", response.header.magic);
+    DESCSOCK_LOG("response.header.msg_length %d\n", response.header.msg_length);
+    DESCSOCK_LOG("response.header.version %d\n", response.header.version);
+    DESCSOCK_LOG("response.header.type %d\n", response.header.type);
+    DESCSOCK_LOG("response.header.magic %d\n", response.header.magic);
 
-    printf("%d\n", response.conn_resp.error_code);
-    printf("%d\n", response.conn_resp.dm_offset);
-    printf("%d\n", response.conn_resp.num_dms);
-    printf("%d\n", response.conn_resp.num_fds);
-
+    DESCSOCK_LOG("response.conn_resp.error_code %d\n", response.conn_resp.error_code);
+    DESCSOCK_LOG("response.conn_resp.dm_offset %d\n", response.conn_resp.dm_offset);
+    DESCSOCK_LOG("response.conn_resp.num_dms %d\n", response.conn_resp.num_dms);
+    DESCSOCK_LOG("response.conn_resp.num_fds %d\n", response.conn_resp.num_fds);
+    //exit(EXIT_FAILURE);
 
     /* receive sockets fds, and add them to the sc->sock_fd array */
     err = descsock_recv_socket_conns(sc->master_socket_fd, sc->sock_fd);
@@ -795,7 +819,7 @@ descsock_partition_sockets(int socks[], int rx[], int tx[]) {
 static int
 descsock_establish_dmaa_conn(void)
 {
-    return descsock_get_unixsocket(MASTER_SOCKET);
+    return descsock_get_unixsocket(descsock_conf.mastersocket);
 }
 
 /* Close master socket and all of unix sockets sent by the DMA Agent */

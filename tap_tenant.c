@@ -16,7 +16,8 @@
 #include <linux/if_tun.h>
 #include <sys/ioctl.h>
 
-#include <descsock_client.h>
+//#include <descsock_client.h>
+#include "./src/descsock_client.h"
 
 #define ETHER_HEADER_LEN    sizeof(struct ether_header)
 #define IP_HEADER_LEN       sizeof(struct iphdr)
@@ -25,8 +26,8 @@
  * Hard coded values used for this client config
  */
 #define SVC_ID              1
-#define MASTER_SOCKET_PATH  "/run/dmaa_doorbell.sock"
-#define HUGEPAGES_PATH      "/var/hugepages"
+#define MASTER_SOCKET_PATH  "/var/run/platform/tenant_doorbell.sock"
+#define HUGEPAGES_PATH      "/var/huge_pages/2048kB"
 
 /* structure buf used for Tx or Rx  */
 struct client_buf {
