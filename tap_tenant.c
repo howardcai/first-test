@@ -401,8 +401,8 @@ tap_send(int tapfd, void *buf, uint32_t len)
     ifh.svc = 10;
     ifh.nti = 4095;
 
-    //return descsock_client_send_extended(&ifh, buf, len, 0);
-    return descsock_client_send(buf, len, 0);
+    return descsock_client_send_extended(&ifh, buf, len, 0);
+    //return descsock_client_send(buf, len, 0);
 }
 size_t
 tap_recv(int tapfd, void *buf, uint32_t len)
