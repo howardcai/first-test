@@ -651,12 +651,16 @@ descsock_tx_single_desc_pkt(struct packet *pkt, dsk_ifh_fields_t *ifh, UINT32 ti
 
     /* Add ifh fields if needed */
     if(ifh != NULL) {
+        tx_desc_flags_t flags;
+        flags.l2_override = 1;
+
         send_desc->did = ifh->did;
         send_desc->sep = ifh->sep;
         send_desc->svc = ifh->svc;
         send_desc->nti = ifh->nti;
+        send_desc->dm = ifh->dm;
         /* Set the DIR flag in descriptor */
-        send_desc->flags |= (1 << 8);
+        send_desc->flags = flags.u8;
     }
 
     /* Check if this packet is less than 64 bytes */
@@ -720,7 +724,7 @@ descsock_config_exchange(char * dmapath)
     request.sys_conn_rqst.length = sc->dma_region.len;
     request.sys_conn_rqst.num_sep = 1;
     request.sys_conn_rqst.pid = getpid();
-    request.sys_conn_rqst.svc_ids[0] = 10;
+    request.sys_conn_rqst.svc_ids[0] = descsock_conf.svc_ids;
 
     request.header.version = F5DC_VERSION_2;
     request.header.type = F5DC_T_CONN_REQ_SYSTEM;
