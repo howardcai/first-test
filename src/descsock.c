@@ -734,8 +734,8 @@ descsock_config_exchange(char * dmapath)
     printf("request\n");
     printf("request.sys_conn_rqst.service_name %s\n", request.sys_conn_rqst.service_name);
     printf("request.sys_conn_rqst.path %s\n", request.sys_conn_rqst.path);
-    printf("request.sys_conn_rqst.base %lld\n", request.sys_conn_rqst.base);
-    printf("request.sys_conn_rqst.length %lld\n", request.sys_conn_rqst.length);
+    printf("request.sys_conn_rqst.base %p\n", request.sys_conn_rqst.base);
+    printf("request.sys_conn_rqst.length %d\n", request.sys_conn_rqst.length);
     printf("request.sys_conn_rqst.num_sep %d\n", request.sys_conn_rqst.num_sep);
     printf("request.sys_conn_rqst.pid %d\n", request.sys_conn_rqst.pid);
     printf("request.sys_conn_rqst.svc_ids[0] %d\n", request.sys_conn_rqst.svc_ids[0]);
@@ -756,7 +756,7 @@ descsock_config_exchange(char * dmapath)
         goto out;
     }
 
-    int num_socks = request.sys_conn_rqst.num_sep * NUM_TIERS * 2;
+    //int num_socks = request.sys_conn_rqst.num_sep * NUM_TIERS * 2;
 
     /*
      * Wait for response from cpproxy
@@ -765,7 +765,7 @@ descsock_config_exchange(char * dmapath)
     n = recv(sc->master_socket_fd, &response, sizeof(response), 0);
     DESCSOCK_LOG("message received %d\n", n);
 
-    int correct_msg_len = sizeof(response) + (num_socks * sizeof(struct msghdr));
+    //int correct_msg_len = sizeof(response) + (num_socks * sizeof(struct msghdr));
     /* XXX: validate response */
 
     //int correct_msg_len = sizeof(response) + (num_socks * sizeof(struct msghdr));
