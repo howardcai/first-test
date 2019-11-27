@@ -1,4 +1,4 @@
-image: artifactory.f5net.com/velocity-platform-docker-dev/datapath-builder:1.6.1
+image: artifactory.f5net.com/velocity-platform-docker-dev/datapath-builder:1.7.8
 
 # This is the source for the prepare and release stages of the pipeline.
 include:
