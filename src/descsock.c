@@ -17,7 +17,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
-
+#include <sys/types.h>
+#include <sys/socket.h>
 #include "descsock_client.h"
 #include "common.h"
 #include "types.h"
@@ -27,6 +28,7 @@
 #include "packet.h"
 #include "xfrag_mem.h"
 #include "descsock.h"
+#include <f5_datapath_connection.h>
 
 
 /*
@@ -123,11 +125,8 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
     descsock_conf.svc_ids = svc_id;
     descsock_conf.memsize = DESCSOCK_DMA_MEM_SIZE;
     descsock_conf.num_seps = 1;
-    /* size is in mb so we multiple to get mb */
-    descsock_conf.dma_seg_size = (descsock_conf.memsize * 1024 * 1024);
-    /* align for unix page size */
+    descsock_conf.dma_seg_size = DESCSOCK_DMA_MEM_SIZE;
     DESCSOCK_LOG("Total mem allocated for descsock framework %lld\n", descsock_conf.dma_seg_size);
-    descsock_conf.dma_seg_size = ((descsock_conf.dma_seg_size + PAGE_MASK) & ~PAGE_SIZE);
 
     sc = malloc(sizeof(struct descsock_softc));
     if(sc == NULL) {
@@ -202,7 +201,8 @@ descsock_init_conn()
     int i;
 
     /* Concatenate descsock.000 to path string to create hugepages path mount */
-    if (snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000", descsock_conf.hugepages_path) >= DESCSOCK_PATH_MAX)
+    if (snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000",
+        descsock_conf.hugepages_path) >= DESCSOCK_PATH_MAX)
     {
         DESCSOCK_LOG("Path to DMA segment too long.");
         goto err_out;
@@ -217,14 +217,6 @@ descsock_init_conn()
     if(sc->dma_region.base == NULL) {
         DESCSOCK_LOG("Failed to map hugepages.");
         err = ERR_CONN;
-        goto err_out;
-    }
-
-    /* Create message string to send to dmaa */
-    if (snprintf(msg, sizeof(msg), "path=%s\nbase=%llu\nlength=%llu\nnum_sep=1\npid=1\nsvc_ids=%d\n\n",
-             sc->dma_region.path, (UINT64)sc->dma_region.base, sc->dma_region.len, descsock_conf.svc_ids) >= sizeof(msg))
-    {
-        DESCSOCK_LOG("Registration message too long.");
         goto err_out;
     }
 
@@ -252,7 +244,6 @@ descsock_init_conn()
     }
 
     DESCSOCK_LOG("received master socket %d.", sc->master_socket_fd);
-    DESCSOCK_LOG("Sending msg to DMAA %s", msg);
 
     /* Send dma region path info to DMA AGENT */
     err = descsock_config_exchange(msg);
@@ -660,12 +651,16 @@ descsock_tx_single_desc_pkt(struct packet *pkt, dsk_ifh_fields_t *ifh, UINT32 ti
 
     /* Add ifh fields if needed */
     if(ifh != NULL) {
+        tx_desc_flags_t flags;
+        flags.l2_override = 1;
+
         send_desc->did = ifh->did;
         send_desc->sep = ifh->sep;
         send_desc->svc = ifh->svc;
         send_desc->nti = ifh->nti;
+        send_desc->dm = ifh->dm;
         /* Set the DIR flag in descriptor */
-        send_desc->flags |= (1 << 8);
+        send_desc->flags = flags.u8;
     }
 
     /* Check if this packet is less than 64 bytes */
@@ -716,52 +711,77 @@ static err_t
 descsock_config_exchange(char * dmapath)
 {
     err_t err = ERR_OK;
-    int n, res, epfd, i;
-    int num_fds = 0;
-    struct epoll_event ev;
-    struct epoll_event events[2];
+    int n, i;
+    f5_tenant_request_t request;
+    f5_tenant_response_t response;
 
-    DESCSOCK_DEBUGF("Sending message to dmaa %s", dmapath);
+    /*
+     * Fill out request to send out
+     */
+    strcpy(request.sys_conn_rqst.service_name, "descsock_lib");
+    strcpy(request.sys_conn_rqst.path, sc->dma_region.path);
+    request.sys_conn_rqst.base = sc->dma_region.base;
+    request.sys_conn_rqst.length = sc->dma_region.len;
+    request.sys_conn_rqst.num_sep = 1;
+    request.sys_conn_rqst.pid = getpid();
+    request.sys_conn_rqst.svc_ids[0] = descsock_conf.svc_ids;
 
-    n = descsock_socket_write(sc->master_socket_fd, dmapath, DESCSOCK_PATHLEN);
-    DESCSOCK_DEBUGF("bytes written %d\n", n);
-    if(n < 0 ) {
+    request.header.version = F5DC_VERSION_2;
+    request.header.type = F5DC_T_CONN_REQ_SYSTEM;
+    request.header.msg_length = sizeof(request);
+    request.header.magic = F5DC_MAGIC;
+
+    printf("request\n");
+    printf("request.sys_conn_rqst.service_name %s\n", request.sys_conn_rqst.service_name);
+    printf("request.sys_conn_rqst.path %s\n", request.sys_conn_rqst.path);
+    printf("request.sys_conn_rqst.base %p\n", request.sys_conn_rqst.base);
+    printf("request.sys_conn_rqst.length %d\n", request.sys_conn_rqst.length);
+    printf("request.sys_conn_rqst.num_sep %d\n", request.sys_conn_rqst.num_sep);
+    printf("request.sys_conn_rqst.pid %d\n", request.sys_conn_rqst.pid);
+    printf("request.sys_conn_rqst.svc_ids[0] %d\n", request.sys_conn_rqst.svc_ids[0]);
+
+    printf("request.header.version %d\n", request.header.version);
+    printf("request.header.type %d\n", request.header.type);
+    printf("request.header.msg_length %d\n", request.header.msg_length);
+    printf("request.header.magic %d\n", request.header.magic);
+
+
+    //DESCSOCK_DEBUGF("Sending message to dmaa %s", dmapath);
+    printf("Sending tenant request\n");
+    n = send(sc->master_socket_fd, &request, sizeof(request), 0);
+    DESCSOCK_LOG("bytes written %d\n", n);
+    if(n != sizeof(request)) {
         DESCSOCK_DEBUGF("Error writing to master socket fd %d", sc->master_socket_fd);
         err = ERR_BUF;
         goto out;
     }
 
-    epfd = descsock_epoll_create(1);
-    if(epfd < 0) {
-        DESCSOCK_DEBUGF("Error epfd: descsock_config_exchange()");
-        err = ERR_BUF;
-        goto out;
-    }
-    /* Single event to register for and listen on doorbell socket */
-    ev.data.fd = sc->master_socket_fd;
-    ev.events = EPOLLIN;
+    //int num_socks = request.sys_conn_rqst.num_sep * NUM_TIERS * 2;
 
-    res = descsock_epoll_ctl(epfd, EPOLL_CTL_ADD, ev.data.fd, &ev);
-    if(res < 0){
-        DESCSOCK_LOG("Error descsock_epoll_ctl");
-        err = ERR_BUF;
-        goto out;
-    }
+    /*
+     * Wait for response from cpproxy
+     */
+    DESCSOCK_LOG("Waiting to receive message\n");
+    n = recv(sc->master_socket_fd, &response, sizeof(response), 0);
+    DESCSOCK_LOG("message received %d\n", n);
 
-    while (num_fds == 0) {
-        DESCSOCK_LOG("driver waiting for FDs");
-        /* Wait 10 seconds */
-        num_fds = descsock_epoll_wait(epfd, events, 1, (10 * 1000));
-        if (num_fds < 0) {
-            DESCSOCK_LOG("error on epoll_wait");
-            err = ERR_BUF;
-            goto out;
-        }
-    }
-    DESCSOCK_DEBUGF("number of events: %d", num_fds);
+    //int correct_msg_len = sizeof(response) + (num_socks * sizeof(struct msghdr));
+    /* XXX: validate response */
+
+    //int correct_msg_len = sizeof(response) + (num_socks * sizeof(struct msghdr));
+    DESCSOCK_LOG("response.header.msg_length %d\n", response.header.msg_length);
+    DESCSOCK_LOG("response.header.version %d\n", response.header.version);
+    DESCSOCK_LOG("response.header.type %d\n", response.header.type);
+    DESCSOCK_LOG("response.header.magic %d\n", response.header.magic);
+
+    DESCSOCK_LOG("response.conn_resp.error_code %d\n", response.conn_resp.error_code);
+    DESCSOCK_LOG("response.conn_resp.dm_offset %d\n", response.conn_resp.dm_offset);
+    DESCSOCK_LOG("response.conn_resp.num_dms %d\n", response.conn_resp.num_dms);
+    DESCSOCK_LOG("response.conn_resp.num_fds %d\n", response.conn_resp.num_fds);
+    //exit(EXIT_FAILURE);
 
     /* receive sockets fds, and add them to the sc->sock_fd array */
-    err = descsock_recv_socket_conns(events[0].data.fd, sc->sock_fd);
+    err = descsock_recv_socket_conns(sc->master_socket_fd, sc->sock_fd);
     if(err != ERR_OK) {
         DESCSOCK_LOG("Failed to receive Rx, Tx sockets");
         err = ERR_CONN;
@@ -790,7 +810,7 @@ descsock_partition_sockets(int socks[], int rx[], int tx[]) {
 static int
 descsock_establish_dmaa_conn(void)
 {
-    return descsock_get_unixsocket(MASTER_SOCKET);
+    return descsock_get_unixsocket(descsock_conf.mastersocket);
 }
 
 /* Close master socket and all of unix sockets sent by the DMA Agent */

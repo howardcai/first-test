@@ -25,8 +25,11 @@
  * Hard coded values used for this client config
  */
 #define SVC_ID              1
-#define MASTER_SOCKET_PATH  "/run/dmaa_doorbell.sock"
-#define HUGEPAGES_PATH      "/var/hugepages"
+#define MASTER_SOCKET_PATH  "/var/run/platform/tenant_doorbell.sock"
+#define HUGEPAGES_PATH      "/var/huge_pages/2048kB"
+
+#define TAP_IP_ADDRESS      "192.172.5.100"
+#define TAP_SUBNET_MASK     "255.255.255.0"
 
 /* structure buf used for Tx or Rx  */
 struct client_buf {
@@ -34,19 +37,12 @@ struct client_buf {
     uint32_t len;
 };
 
-typedef struct {
-    char tap_ip[sizeof("255.255.255.255")];
-    char tap_netmask[sizeof("255.255.255.255")];
-} dsk_tap_net_t;
-
-
-static dsk_tap_net_t client_tap_info;
-
 uint16_t chksum(uint16_t *buf, int nwords);
 void prep_dummypkt(void *buf_base);
 void send_packets(int count);
 void descsock_client_print_buf(void * buf, int buf_len);
-int tap_open(const char *name);
+int tap_open(const char *name, int mtu);
+void tap_fill_macaddr(int fd, uint8_t *mac);
 
 /*
  * Kernel facing read, write calls
@@ -94,8 +90,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    /* XXX: add ip address and set interface to up */
-    tapfd = tap_open(tap_ifname);
+    tapfd = tap_open(tap_ifname, 0);
 
     if(tapfd < 0) {
         printf("Failed to create tap interface %s\n", strerror(errno));
@@ -132,6 +127,8 @@ int main(int argc, char *argv[]) {
                 if(ret & DESCSOCK_POLLOUT) {
                     void *rxbuf2 = malloc(DESCSOCK_CLIENT_BUF_SIZE);
                     read = tap_read(events[i].data.fd, rxbuf2, 2048);
+                    printf("Sending buf\n");
+                    descsock_client_print_buf(rxbuf2, read);
                     /* Write packet to descsock library */
                     tap_send(events[i].data.fd, rxbuf2, read);
 
@@ -269,42 +266,145 @@ uint16_t chksum(uint16_t *buf, int nwords)
 
 }
 
-int tap_open(const char *name) {
-    struct ifreq ifr = {{{0}}} ;
-    int fd = -1, res = -1;
+int tap_open(const char *name, int mtu) {
+    struct ifreq ifr = {0};
+    /* The static MAC address we will use for our TAP interface */
+    uint8_t mac[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xf5};
 
-    fd = open("/dev/net/tun", O_RDWR);
+    int fd = open("/dev/net/tun", O_RDWR);
+    /* general socket to make IOCTL calls to net_device */
+    int access_socket = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
         printf("Error opening /dev/net/tun");
-        return fd;
+        return -1;
     }
 
     ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
     strncpy(ifr.ifr_name, name, IFNAMSIZ);
 
-    res = ioctl(fd, TUNSETIFF, &ifr);
-    if (res < 0) {
+    if (ioctl(fd, TUNSETIFF, &ifr) < 0) {
         printf("TUNSETIFF ioctl failed");
         close(fd);
-        return res;
+        return -1;
     }
 
+    /*
+     * Set the MTU for this tap interface
+     * If the user passed MTU via commandline args use that MTU,
+     * else use 1500
+     */
+    // ifr.ifr_mtu = (mtu != 0)? mtu : 1500;
+    // if(ioctl(access_socket, SIOCSIFMTU, &ifr) < 0 ) {
+    //     printf("Setting MTU failed");
+    //     exit(-1);
+    // }
+
+    /* Set Up static MAC address to make things easier to debug */
+    ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
+    memcpy(ifr.ifr_hwaddr.sa_data, mac, 6);
+    if(ioctl(access_socket, SIOCSIFHWADDR, &ifr) < 0) {
+        printf("Failed to SET MAC address.\n");
+        exit(0);
+    }
+    /* Add IP address for TAP interface */
+    struct sockaddr_in tap_ip_addr;
+    tap_ip_addr.sin_family = AF_INET;
+    tap_ip_addr.sin_port = 0;
+    inet_pton(AF_INET, TAP_IP_ADDRESS, &(tap_ip_addr.sin_addr));
+    memcpy(&ifr.ifr_addr, &tap_ip_addr, sizeof(struct sockaddr));
+    if(ioctl(access_socket, SIOCSIFADDR, &ifr) < 0) {
+        printf("Error setting IP with iocl() ");
+        exit(-1);
+    }
+
+    /* Add Subnet Mask for TAP interface  */
+    struct sockaddr_in tap_subnet_mask;
+    tap_subnet_mask.sin_family = AF_INET;
+    tap_subnet_mask.sin_port = 0;
+    inet_pton(AF_INET, TAP_SUBNET_MASK, &(tap_subnet_mask.sin_addr));
+    memcpy(&ifr.ifr_addr, &tap_subnet_mask, sizeof(struct sockaddr));
+    if(ioctl(access_socket, SIOCSIFNETMASK, &ifr) < 0) {
+        printf("Error setting IP with iocl() ");
+        exit(-1);
+    }
+
+    /* Enable the interface */
+    ifr.ifr_flags = IFF_UP | IFF_RUNNING | IFF_MULTICAST | IFF_PROMISC;
+    if(ioctl(access_socket, SIOCSIFFLAGS, &ifr) < 0 ) {
+        printf("Enabling Tap interface ");
+    }
+
+    /* Get and print MAC */
+    printf("MAC address for %s TAP interface\n", name);
+    tap_fill_macaddr(fd, mac);
+
+    /*
+     * Commands to set up tap sub-interface and make debbuging faster, can be removed ofcourse, just an
+     * example of how I have my network configured with Neoncity
+     */
+    // char mtu_str[BUFSIZ];
+    // snprintf(mtu_str, BUFSIZ, "ifconfig pde0.99 mtu %d", mtu);
+    // system("ip link add link pde0 name pde0.99 type vlan id 99");
+    // system("ifconfig pde0.99 192.168.99.99 netmask 255.255.255.0");
+    // system(mtu_str);
+    // system("arp -s 192.168.99.100 00:00:00:00:03:14");
+    // system("arp -s 10.0.200.51 00:00:00:00:03:14");
+
     return fd;
+}
+
+   /*
+ * Fill out an array of u8 from a TAP interface mac address
+ */
+void tap_fill_macaddr(int fd, uint8_t *mac) {
+    struct ifreq ifr = {0};
+    int i;
+    if(fd < 0) {
+        printf("Bad tap fd for tap_get_macaddr");
+        exit(-1);
+    }
+
+   /* Get MAC */
+    if(ioctl(fd, SIOCGIFHWADDR, &ifr) < 0) {
+        printf("Failed to get MAC address.\n");
+        exit(-1);
+    }
+    memcpy(mac, ifr.ifr_hwaddr.sa_data, 6);
+
+    /* print mac address */
+    printf("TAP MAC address: ");
+    for(i = 0; i < 6; i++) {
+        printf("%02x:", mac[i]);
+    }
+    printf("\n");
 }
 
 size_t tap_read(int tapfd, void *buf, uint32_t len)
 {
     return read(tapfd, buf, len);
 }
-size_t tap_write(int tapfd, void *buf, uint32_t len)
+
+size_t
+tap_write(int tapfd, void *buf, uint32_t len)
 {
     return write(tapfd, buf, len);
 }
-size_t tap_send(int tapfd, void *buf, uint32_t len)
+
+size_t
+tap_send(int tapfd, void *buf, uint32_t len)
 {
-    return descsock_client_send(buf, len, 0);
+    dsk_ifh_fields_t ifh;
+    ifh.did = 4;
+    ifh.qos_tier = 0;
+    ifh.sep = 0 ;
+    ifh.svc = 10;
+    ifh.nti = 4095;
+
+    return descsock_client_send_extended(&ifh, buf, len, 0);
+    //return descsock_client_send(buf, len, 0);
 }
-size_t tap_recv(int tapfd, void *buf, uint32_t len)
+size_t
+tap_recv(int tapfd, void *buf, uint32_t len)
 {
     /* Consume 32 packets per poll */
     return descsock_client_recv(buf, DESCSOCK_CLIENT_BUF_SIZE, 0);
