@@ -2,6 +2,17 @@
 
 <!--- next entry here -->
 
+## 1.1.2
+2019-11-27
+
+### Fixes
+
+- use send extended (275b8b9d90d4f8f1b70815d5c283ed393abaf0bb)
+- include binary protocol (68380dba50309e5632a746624b941677e0ab24c2)
+- update datapath builder container to support new binary protocol (56410b3a8c26765147cd08689233b6c2c727a75d)
+- add header (404610b58f0242ea02101e308e44a9f406cfcb41)
+- removed unused variables (d2525b05e3b9b92e28cd57a15231d3e19f80ee7c)
+
 ## 1.1.1
 2019-10-29
 
