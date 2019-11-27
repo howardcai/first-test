@@ -25,7 +25,7 @@
 /*
  * Hard coded values used for this client config
  */
-#define SVC_ID              1
+#define SVC_ID              10
 #define MASTER_SOCKET_PATH  "/var/run/platform/tenant_doorbell.sock"
 #define HUGEPAGES_PATH      "/var/huge_pages/2048kB"
 
