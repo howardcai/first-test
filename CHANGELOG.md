@@ -2,6 +2,15 @@
 
 <!--- next entry here -->
 
+## 1.1.3
+2019-11-27
+
+### Fixes
+
+- Added inet headerf file (f3c72b0706407a6466cb0de4d4d9d74cbfa61e7a)
+- change svc id from 0 to 10 (f4373ea46d2b7b3f6083f13f9bbfcf8af4136000)
+- merge to master (934dcf088bf1d619d0d9690c903eb035c3c7bf55)
+
 ## 1.1.2
 2019-11-27
 
