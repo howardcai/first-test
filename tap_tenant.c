@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <netinet/ip.h>
 #include <net/ethernet.h>
+#include <arpa/inet.h>
 #include <sys/epoll.h>
 #include <unistd.h>
 #include <fcntl.h>
