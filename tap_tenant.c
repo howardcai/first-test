@@ -16,8 +16,7 @@
 #include <linux/if_tun.h>
 #include <sys/ioctl.h>
 
-//#include <descsock_client.h>
-#include "./src/descsock_client.h"
+#include <descsock_client.h>
 
 #define ETHER_HEADER_LEN    sizeof(struct ether_header)
 #define IP_HEADER_LEN       sizeof(struct iphdr)
