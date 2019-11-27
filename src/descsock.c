@@ -172,13 +172,6 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
     /* Set descsock state to up */
     sc->state = DESCSOCK_UP;
 
-    /* Allocate mem for global stats object */
-    // descsock_stats = malloc(sizeof(descsock_client_stats_t));
-
-    // if(descsock_stats == NULL) {
-    //     goto err_out;
-    // }
-
     return ret;
 
 err_out:

@@ -2,6 +2,26 @@
 
 <!--- next entry here -->
 
+## 1.1.3
+2019-11-27
+
+### Fixes
+
+- Added inet headerf file (f3c72b0706407a6466cb0de4d4d9d74cbfa61e7a)
+- change svc id from 0 to 10 (f4373ea46d2b7b3f6083f13f9bbfcf8af4136000)
+- merge to master (934dcf088bf1d619d0d9690c903eb035c3c7bf55)
+
+## 1.1.2
+2019-11-27
+
+### Fixes
+
+- use send extended (275b8b9d90d4f8f1b70815d5c283ed393abaf0bb)
+- include binary protocol (68380dba50309e5632a746624b941677e0ab24c2)
+- update datapath builder container to support new binary protocol (56410b3a8c26765147cd08689233b6c2c727a75d)
+- add header (404610b58f0242ea02101e308e44a9f406cfcb41)
+- removed unused variables (d2525b05e3b9b92e28cd57a15231d3e19f80ee7c)
+
 ## 1.1.1
 2019-10-29
 
