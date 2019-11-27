@@ -45,7 +45,7 @@
 /*
  * DMA mem the library will allocate Rx, Tx DMA operations
  */
-#define DESCSOCK_DMA_MEM_SIZE               64 /* Size in MB */
+#define DESCSOCK_DMA_MEM_SIZE               (1ULL << 30) /* 1Gi */
 
 
 #define DESCSOCK_MAX_TX_XFRAGS_PER_PACKET   5
