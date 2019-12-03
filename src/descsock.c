@@ -635,6 +635,7 @@ descsock_tx_single_desc_pkt(struct packet *pkt, dsk_ifh_fields_t *ifh, UINT32 ti
     tx_completions_ctx_t *clean_ctx;
     laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
     laden_buf_desc_t *send_desc = (laden_buf_desc_t *)&tx_out_fifo->c[tx_out_fifo->prod_idx];
+    laden_tx_desc_flags_t flags;
 
     /* Get buf data from packet */
     send_desc->addr = (UINT64) pkt->xf_first->data;
@@ -645,15 +646,14 @@ descsock_tx_single_desc_pkt(struct packet *pkt, dsk_ifh_fields_t *ifh, UINT32 ti
 
     /* Add ifh fields if needed */
     if(ifh != NULL) {
-        tx_desc_flags_t flags;
-        flags.l2_override = 1;
+        /* Set the DIR flag in descriptor */
+        flags.directed = 1;
 
         send_desc->did = ifh->did;
         send_desc->sep = ifh->sep;
         send_desc->svc = ifh->svc;
         send_desc->nti = ifh->nti;
         send_desc->dm = ifh->dm;
-        /* Set the DIR flag in descriptor */
         send_desc->flags = flags.u8;
     }
 

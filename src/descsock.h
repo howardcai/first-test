@@ -64,55 +64,58 @@ typedef struct {
             len      : 16;
 } empty_buf_desc_t;
 
+/* Laden Rx Return descriptor flags. */
 typedef union {
-    /* Transmit descriptor flags */
     struct {
-    UINT8      l3csum_ok        : 1,
-            l4csum_ok        : 1,
+        UINT8  l3csum_ok    : 1,
+            l4csum_ok       : 1,
+            fsu             : 1,
+            directed        : 1,
+            dlf             : 1,
+            mcast           : 1,
+                            : 2;
+    };
+    UINT8     u8;
+} laden_rx_desc_flags_t;
+
+/* Laden Tx Send descriptor flags. */
+typedef union {
+    struct {
+        UINT8  repl_l3csum   : 1,
+            repl_l4csum      : 1,
             snoop            : 1,
-            l2_override      : 1,
+            directed         : 1,
             wait             : 1,
                              : 3;
     };
     UINT8     u8;
-} tx_desc_flags_t;
+} laden_tx_desc_flags_t;
 
+typedef union {
+    laden_rx_desc_flags_t   rx;
+    laden_tx_desc_flags_t   tx;
+} laden_desc_flags_t;
 
 typedef struct {
-    /* 0x00 */
-    UINT64 addr  : 48,
-        len   : 16;
+    UINT64 addr     : 48,
+        len         : 16;   // 0x08
 
-    UINT32 type  : 3,
-              : 1,
-        host  : 1,
-        eop   : 1,
-        sop   : 1,
-        err   : 1,
-        flags : 8,
-        did   : 11,
-              : 5;
+    UINT32 type     :  3,
+                    :  1,
+        host        :  1,
+        sop         :  1,
+        eop         :  1,
+        err         :  1,
+        flags       :  8,
+        did         : 11,
+                    :  5;   // 0x0C
 
-    UINT32 sep   : 4,
-        dm    : 2,
-        svc   : 14,
-        nti   : 12;
+    UINT32 sep      :  4,
+        dm          :  2,
+        svc         : 14,
+        nti         : 12;   // 0x10
 
-    /* 0x10 */
-    UINT32 tc      : 8,
-        wl_hits : 5,
-                : 7,
-        dos_vec : 8,
-        dos_act : 3,
-        dos_wl  : 1;
-
-    UINT32 epva_hash : 24,
-        spva_res  : 8;
-
-    UINT32 lro_hints : 20,
-                  : 12;
-
-    UINT32 resv3;
+    UINT32            _r[3];   // 0x20
 } laden_buf_desc_t;
 
 
