@@ -121,6 +121,11 @@ typedef struct {
      * this client with.
      */
     int     svc_id;
+     /*
+     * Confd tenant name
+     */
+    char    tenant_name[DESCSOCK_CLIENT_PATHLEN];
+
 } descsock_client_spec_t;
 
 /*

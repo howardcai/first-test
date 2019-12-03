@@ -28,6 +28,7 @@
 #define SVC_ID              10
 #define MASTER_SOCKET_PATH  "/var/run/platform/tenant_doorbell.sock"
 #define HUGEPAGES_PATH      "/var/huge_pages/2048kB"
+#define TENANT_NAME         "tap_sytem_tenant"
 
 #define TAP_IP_ADDRESS      "192.172.5.100"
 #define TAP_SUBNET_MASK     "255.255.255.0"
@@ -75,6 +76,7 @@ int main(int argc, char *argv[]) {
     /* set configs for this client */
     snprintf(client->master_socket_path, DESCSOCK_CLIENT_PATHLEN, "%s", MASTER_SOCKET_PATH);
     snprintf(client->dma_shmem_path, DESCSOCK_CLIENT_PATHLEN, "%s", HUGEPAGES_PATH);
+    snprintf(client->tenant_name, DESCSOCK_CLIENT_PATHLEN, "%s", TENANT_NAME);
     client->svc_id = SVC_ID;
 
 

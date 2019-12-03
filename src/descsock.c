@@ -113,7 +113,7 @@ descsock_client_stats_t  descsock_client_stats = {
  * Returns 1 on success, -1 on failure
  */
 int
-descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
+descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id, char *tenant_name)
 {
     int i;
     int ret = SUCCESS;
@@ -122,6 +122,7 @@ descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id)
 
     strcpy(descsock_conf.hugepages_path, dma_shmem_path);
     strcpy(descsock_conf.mastersocket, mastersocket);
+    strcpy(descsock_conf.tenant_name, tenant_name);
     descsock_conf.svc_ids = svc_id;
     descsock_conf.memsize = DESCSOCK_DMA_MEM_SIZE;
     descsock_conf.num_seps = 1;
@@ -711,7 +712,7 @@ descsock_config_exchange(char * dmapath)
     /*
      * Fill out request to send out
      */
-    strcpy(request.sys_conn_rqst.service_name, "descsock_lib");
+    strcpy(request.sys_conn_rqst.service_name, descsock_conf.tenant_name);
     strcpy(request.sys_conn_rqst.path, sc->dma_region.path);
     request.sys_conn_rqst.base = sc->dma_region.base;
     request.sys_conn_rqst.length = sc->dma_region.len;

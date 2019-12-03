@@ -20,6 +20,7 @@ struct descsock_conf {
     BOOL            use_tap;
     char            hugepages_path[DESCSOCK_PATHLEN];
     char            mastersocket[DESCSOCK_PATHLEN];
+    char            tenant_name[DESCSOCK_PATHLEN];
     void            *dma_seg_base;
     UINT64          dma_seg_size;
     UINT32          num_seps;

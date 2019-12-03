@@ -255,7 +255,7 @@ err_t descsock_teardown(void);
  * library client API
  */
 BOOL descsock_poll(int event_mask);
-int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id);
+int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id, char *tenant_name);
 int descsock_send(dsk_ifh_fields_t *ifh, void *buf, UINT32 len);
 int descsock_recv(void *buf, UINT32 len, int flag);
 BOOL descsock_state_full(void);
