@@ -92,6 +92,7 @@ typedef struct {
      * (as a result of calling descsoc_send()).
      */
     uint64_t    tx_bytes_out;
+
 } descsock_client_stats_t;
 
 
