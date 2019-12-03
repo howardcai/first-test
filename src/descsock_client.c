@@ -31,6 +31,7 @@ static struct client_config {
     char dma_shmem_path[DESCSOCK_CLIENT_PATHLEN];
     char master_socket_path[DESCSOCK_CLIENT_PATHLEN];
     int svc_id;
+    char tenant_name[DESCSOCK_CLIENT_PATHLEN];
 } config = {
     .svc_id = 0,
 };
@@ -48,7 +49,9 @@ init_descosck_lib() {
     int ret;
 
     /* Initialize descsock library */
-    ret = descsock_init(0, config.dma_shmem_path, config.master_socket_path, config.svc_id);
+    ret = descsock_init(0, config.dma_shmem_path, config.master_socket_path,
+            config.svc_id, config.tenant_name);
+
     if(ret == DESCSOCK_CLIENT_FAILED) {
         printf("Failed to init descsock framework\n");
         return DESCSOCK_CLIENT_FAILED;
@@ -72,6 +75,7 @@ descsock_client_open(descsock_client_spec_t * const spec, const int flags)
 
     strcpy(config.dma_shmem_path, spec->dma_shmem_path);
     strcpy(config.master_socket_path, spec->master_socket_path);
+    strcpy(config.tenant_name, spec->tenant_name);
     config.svc_id = spec->svc_id;
 
 

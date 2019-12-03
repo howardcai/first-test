@@ -92,7 +92,6 @@ typedef struct {
      * (as a result of calling descsoc_send()).
      */
     uint64_t    tx_bytes_out;
-
 } descsock_client_stats_t;
 
 
@@ -121,6 +120,11 @@ typedef struct {
      * this client with.
      */
     int     svc_id;
+     /*
+     * Confd tenant name
+     */
+    char    tenant_name[DESCSOCK_CLIENT_PATHLEN];
+
 } descsock_client_spec_t;
 
 /*
