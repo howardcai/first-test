@@ -2,6 +2,19 @@
 
 <!--- next entry here -->
 
+## 1.2.0
+2019-12-03
+
+### Features
+
+- Add support for naming sytem tenants (d32647759aac53b1cd24c88a38f16309367de023)
+- Add name for system tenants (e0dda588020e47145f8f813b6d674f341ab197a7)
+
+### Fixes
+
+- Added inet headerf file (f944971bad743a65fca301469d9f7ad5ec61ee89)
+- change svc id from 0 to 10 (399a50586a2eecf59f0fdf5081e0465186ab693c)
+
 ## 1.1.3
 2019-11-27
 
