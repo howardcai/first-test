@@ -2,6 +2,14 @@
 
 <!--- next entry here -->
 
+## 1.2.1
+2019-12-04
+
+### Fixes
+
+- add directed flag to send descriptor (5c9c40e5242c21bf4f83c8e8da406b8beebe158f)
+- add directed flag to send descriptor (fc2a13cdfe61c7dc703d9ad32cb6812e35172320)
+
 ## 1.2.0
 2019-12-03
 
