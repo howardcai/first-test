@@ -5,6 +5,12 @@
  * any means, electronic or mechanical, for any purpose, without express
  * written permission of F5 Networks, Inc.
  */
+#ifdef __cplusplus
+/* This 'extern "C"' syntax is only valid in C++, not in C. */
+extern "C" {
+/* From now everything has C linkage. */
+#endif
+
 #ifndef _DESCSOCK_CLIENT_H
 #define _DESCSOCK_CLIENT_H
 
@@ -243,5 +249,9 @@ int descsock_client_ctrl(const int cmd, ...);
  */
 int descsock_client_close(void);
 
+#endif
 
+#ifdef __cplusplus
+/* Close the brace opened above */
+}
 #endif
