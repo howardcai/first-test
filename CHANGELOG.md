@@ -2,6 +2,13 @@
 
 <!--- next entry here -->
 
+## 1.3.0
+2019-12-05
+
+### Features
+
+- add c extern cpp linkage support (2beebc56c732d39f4621cf5862fd399d5859a239)
+
 ## 1.2.1
 2019-12-04
 
