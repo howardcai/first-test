@@ -2,6 +2,13 @@
 
 <!--- next entry here -->
 
+## 1.3.1
+2019-12-06
+
+### Fixes
+
+- Separate control for setting the l2 / directed override (2599dca946c466c2e96a4c8a49dd5e8adf5d7962)
+
 ## 1.3.0
 2019-12-05
 
