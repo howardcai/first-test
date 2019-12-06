@@ -208,6 +208,7 @@ typedef struct {
     uint32_t    qos_tier;
     uint32_t    nti;
     uint32_t    dm;
+    bool        directed;
 } dsk_ifh_fields_t;
 ssize_t descsock_client_send_extended(dsk_ifh_fields_t *ifh, void *buf, const uint64_t len, const int flags);
 
