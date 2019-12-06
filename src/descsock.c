@@ -647,7 +647,7 @@ descsock_tx_single_desc_pkt(struct packet *pkt, dsk_ifh_fields_t *ifh, UINT32 ti
     /* Add ifh fields if needed */
     if(ifh != NULL) {
         /* Set the DIR flag in descriptor */
-        laden_desc_flags.tx.directed = 1;
+        laden_desc_flags.tx.directed = (ifh->directed)? 1 : 0;
 
         send_desc->did = ifh->did;
         send_desc->sep = ifh->sep;

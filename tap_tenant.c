@@ -402,6 +402,7 @@ tap_send(int tapfd, void *buf, uint32_t len)
     ifh.sep = 0 ;
     ifh.svc = 10;
     ifh.nti = 4095;
+    ifh.directed = true;
 
     return descsock_client_send_extended(&ifh, buf, len, 0);
     //return descsock_client_send(buf, len, 0);
