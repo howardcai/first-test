@@ -17,7 +17,7 @@
 #include <stdio.h>
 #include <sys/epoll.h>
 
-#include "sys/types.h"
+#include "types.h"
 #include "fixed_queue.h"
 #include "err.h"
 #include "xfrag_mem.h"
@@ -63,6 +63,7 @@ typedef struct {
     UINT64  addr     : 48,
             len      : 16;
 } empty_buf_desc_t;
+STATIC_ASSERT(sizeof(empty_buf_desc_t) == 8);
 
 /* Laden Rx Return descriptor flags. */
 typedef union {
@@ -115,9 +116,9 @@ typedef struct {
         svc         : 14,
         nti         : 12;   // 0x10
 
-    UINT32            _r[3];   // 0x20
+    UINT32            _r[4];   // 0x20
 } laden_buf_desc_t;
-
+STATIC_ASSERT(sizeof(laden_buf_desc_t) == 32);
 
 
 /* Ring metadata */
