@@ -413,6 +413,7 @@ descsock_recv(void *buf, UINT32 len, int flag)
     /* read_len = pkt->len; */
 
     memcpy(buf, pkt->xf_first->data, len);
+    pkt->len = len;
 
     /* Recycle DMA bufs  */
     xfrag_free(pkt->xf_first, rx);
