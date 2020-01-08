@@ -400,7 +400,7 @@ descsock_recv(void *buf, UINT32 len, int flag)
 {
     struct packet *pkt;
     bool rx = true;
-    int read_len = 0;
+    /* int read_len = 0; */
 
     if(FIXEDQ_EMPTY(sc->rx_queue.rx_pkt_queue)) {
         return 0;
@@ -410,9 +410,9 @@ descsock_recv(void *buf, UINT32 len, int flag)
     pkt = FIXEDQ_HEAD(sc->rx_queue.rx_pkt_queue);
     FIXEDQ_REMOVE(sc->rx_queue.rx_pkt_queue);
 
-    read_len = pkt->len;
+    /* read_len = pkt->len; */
 
-    memcpy(buf, pkt->xf_first->data, read_len);
+    memcpy(buf, pkt->xf_first->data, len);
 
     /* Recycle DMA bufs  */
     xfrag_free(pkt->xf_first, rx);
