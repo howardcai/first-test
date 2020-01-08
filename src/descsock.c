@@ -421,7 +421,7 @@ descsock_recv(void *buf, UINT32 len, int flag)
     DESCSOCK_DEBUGF("received pkt %p with buf %p %lld len %d\n",
         pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
 
-    return read_len;
+    return len;
 }
 
 /* Clean descsock state, free all mem */
