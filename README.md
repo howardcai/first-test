@@ -6,7 +6,7 @@
 make rpm
 sudo rpm -i rpmbuild/RPMS/x86_64/libdescsock-client-THEVERSION-dev.x86_64.rpm
 make example
-./test_client
+./test_client  
 ```
 ***
 <br />
@@ -21,7 +21,7 @@ make example
 2)  Use `descsock_poll()` or `descsock_send()` or `descsock_recv()`, depending on
    the blocking / nonblocking requirement of your program's IO
    model, to check for, send, and receive Ethernet frames,
-   respectively.
+   respectively. 
 
 3)  Call `descsock_close()` to terminate the client connection with the DMA Agent
 ***
@@ -87,7 +87,7 @@ Returns 0 on success, -1 on failure and errno will be set appropriately.
 <br />
 
 Takes an _@event_mask_ of _DESCSOCK_POLL_ events and checks if the current descsock state meets the condition of the requested events.
-Returns a mask of event conditions which are satisfied and in the _@event_mask_, or _DESCSOCK_POLLERR_ (-1) if an error is encountered.
+Returns a mask of event conditions which are satisfied and in the _@event_mask_, or _DESCSOCK_POLLERR_ (-1) if an error is encountered.  
 `int descsock_poll(int event_mask);`
 ***
 <br />
@@ -98,7 +98,7 @@ _@flags_ specifies any flags which override the defaults specified in _descsock_
 Note that @buf must point to a complete Ethernet frame, including 4 trailing empty bytes for the CRC. This is required by hardware.
 Returns number of bytes sent, or -1 on failure and errno will be set appropriately.
 If errno is EWOULDBLOCK, and the DESCSOCK_NONBLOCK flag is set, then there is
-back-pressure on the transmit descriptor socket (no room to send).
+back-pressure on the transmit descriptor socket (no room to send).  
 `ssize_t descsock_send(const void * const buf, const size_t len, const int flags);`
 ***
 <br />
@@ -111,7 +111,7 @@ hardware.
 Returns number of bytes recieved into _@buf_, or -1 on failure and errno will be set appropriately.
 
 If errno is EWOULDBLOCK, and the DESCSOCK_NONBLOCK flag is set, then no complete packets have been buffered internally by the client library
-worke thread (no data to recv).
+worke thread (no data to recv).  
 `ssize_t descsock_recv(void * const buf, const size_t len, const int flags);`
 ***
 <br />
