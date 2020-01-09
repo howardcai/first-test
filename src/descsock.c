@@ -393,28 +393,34 @@ err_out:
 
 
 /*
- * Returns number of bytes read, or 0 if no rx packets
+ * Returns number of bytes read,
+ * Returns 0 if there are no packets or the provided buf is too small to receive a packet
  */
 int
 descsock_recv(void *buf, UINT32 len, int flag)
 {
     struct packet *pkt;
     bool rx = true;
-    /* int read_len = 0; */
+    int ret = 0;
 
     if(FIXEDQ_EMPTY(sc->rx_queue.rx_pkt_queue)) {
-        return 0;
+        goto out;
     }
 
     /* Dequeue packet */
     pkt = FIXEDQ_HEAD(sc->rx_queue.rx_pkt_queue);
     FIXEDQ_REMOVE(sc->rx_queue.rx_pkt_queue);
 
-    /* read_len = pkt->len; */
+    /* Check that queued packet can be writen to the provided buf */
+    if(pkt->len > len) {
+        DESCSOCK_LOG("Provided buf %p with len %d is not big enough to hold packet with size %d",
+                buf, len, pkt->len);
+        ret = -1;
+        goto out;
+    }
 
     memcpy(buf, pkt->xf_first->data, len);
-    pkt->len = len;
-
+    ret = pkt->len;
     /* Recycle DMA bufs  */
     xfrag_free(pkt->xf_first, rx);
     packet_free(pkt);
@@ -422,7 +428,8 @@ descsock_recv(void *buf, UINT32 len, int flag)
     DESCSOCK_DEBUGF("received pkt %p with buf %p %lld len %d\n",
         pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
 
-    return len;
+out:
+    return ret;
 }
 
 /* Clean descsock state, free all mem */
