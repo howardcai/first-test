@@ -20,8 +20,7 @@ make example
 
 2)  Use `descsock_poll()` or `descsock_send()` or `descsock_recv()`, depending on
    the blocking / nonblocking requirement of your program's IO
-   model, to check for, send, and receive Ethernet frames,
-   respectively. 
+   model, to check for, send, and receive Ethernet frames, respectively. 
 
 3)  Call `descsock_close()` to terminate the client connection with the DMA Agent
 ***
