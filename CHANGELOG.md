@@ -2,6 +2,13 @@
 
 <!--- next entry here -->
 
+## 1.3.2
+2020-01-09
+
+### Fixes
+
+- Correct laden descriptor size, add static assert (662bf8e6a57aa7996e3cdec4afd20dfea8b6b262)
+
 ## 1.3.1
 2019-12-06
 
