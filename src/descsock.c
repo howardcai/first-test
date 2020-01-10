@@ -394,7 +394,8 @@ err_out:
 
 /*
  * Returns number of bytes read,
- * Returns 0 if there are no packets, -1 if the provided buf is too small to receive a packet
+ * Returns 0 if there are no packets, 
+ * Returns DSK_FLAG_RXBUF_SMALL if the provided buf is too small to receive a packet
  */
 int
 descsock_recv(void *buf, UINT32 len, int flag)
@@ -415,7 +416,7 @@ descsock_recv(void *buf, UINT32 len, int flag)
     if(pkt->len > len) {
         DESCSOCK_LOG("Provided buf %p with len %d is not big enough to hold packet with size %d",
                 buf, len, pkt->len);
-        ret = -1;
+        ret = DSK_FLAG_RXBUF_SMALL;
         goto out;
     }
 

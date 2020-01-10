@@ -26,13 +26,16 @@ extern "C" {
 
 #define DESCSOCK_CLIENT_FAILED      -1
 #define DESCSOCK_CLIENT_SUCCESS     1
+
+/* Constant to idicate if a buf is not big enough to hold packet data*/
+#define DSK_FLAG_RXBUF_SMALL        -99
 /*
  * Maximum length of a file path parameter or field used with this library.
  */
 #define DESCSOCK_CLIENT_PATHLEN    512
 #define DESCSOCK_CLIENT_BUF_SIZE   2048
 
-/*
+/*S
  * ======================= GENERAL USAGE ========================
  *
  *  1)  Call descsock_client_open() with an descsock_client_spec_t defining
