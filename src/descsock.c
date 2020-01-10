@@ -194,9 +194,11 @@ descsock_init_conn()
     char msg[DESCSOCK_MSG_MAX];
     int i;
 
-    /* Concatenate descsock.000 to path string to create hugepages path mount */
-    if (snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.000",
-        descsock_conf.hugepages_path) >= DESCSOCK_PATH_MAX)
+    /*
+     * Concatenate tenant name and dma hugepages path string to create a unique hugepages path mount
+     */
+    if (snprintf(msg, DESCSOCK_PATH_MAX, "%s/descsock.%s",
+        descsock_conf.hugepages_path, descsock_conf.tenant_name) >= DESCSOCK_PATH_MAX)
     {
         DESCSOCK_LOG("Path to DMA segment too long.");
         goto err_out;
@@ -410,19 +412,28 @@ descsock_recv(void *buf, UINT32 len, int flag)
 
     /* Dequeue packet */
     pkt = FIXEDQ_HEAD(sc->rx_queue.rx_pkt_queue);
-    FIXEDQ_REMOVE(sc->rx_queue.rx_pkt_queue);
 
-    /* Check that queued packet can be writen to the provided buf */
-    if(pkt->len > len) {
-        DESCSOCK_LOG("Provided buf %p with len %d is not big enough to hold packet with size %d",
+    if((pkt->len > len)) {
+        /* silently truncate packet if user requests it */
+        if(flag & DSK_FLAG_TRUNCATE_PKT) {
+            memcpy(buf, pkt->xf_first->data, len);
+            ret = len;
+        }
+        else {
+            /* print out error log, leave packet in queue */
+            DESCSOCK_LOG("Provided buf %p with len %d is not big enough to hold packet with size %d",
                 buf, len, pkt->len);
-        ret = DSK_FLAG_RXBUF_SMALL;
-        goto out;
+            ret = DSK_FLAG_RXBUF_SMALL;
+            goto out;
+        }
+    }
+    else {
+        memcpy(buf, pkt->xf_first->data, pkt->len);
+        ret = pkt->len;
     }
 
-    memcpy(buf, pkt->xf_first->data, len);
-    ret = pkt->len;
     /* Recycle DMA bufs  */
+    FIXEDQ_REMOVE(sc->rx_queue.rx_pkt_queue);
     xfrag_free(pkt->xf_first, rx);
     packet_free(pkt);
 
