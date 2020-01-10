@@ -150,6 +150,8 @@ int main(int argc, char *argv[]) {
             read = tap_recv(tapfd, rxbuf, 2048);
             /* Write data to tap interface */
             tap_write(tapfd, rxbuf, read);
+            printf("Receiving buf\n");
+            descsock_client_print_buf(rxbuf, read);
 
             free(rxbuf);
         }
@@ -182,7 +184,7 @@ descsock_client_print_buf(void * buf, int buf_len)
         if (i % 32 == 0) {
             printf("\n%06d ", i);
         }
-        printf("%02x ", p[i]);
+        printf("%02x ", (unsigned char)p[i]);
     }
     printf("\n\n");
 }
