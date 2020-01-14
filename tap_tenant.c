@@ -224,7 +224,7 @@ descsock_client_print_buf(void * buf, int buf_len)
         if (i % 32 == 0) {
             printf("\n%06d ", i);
         }
-        printf("%02x ", p[i]);
+        printf("%02x ", (unsigned char)p[i]);
     }
     printf("\n\n");
 }
