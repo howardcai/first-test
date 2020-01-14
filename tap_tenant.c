@@ -36,12 +36,13 @@
 struct tenant_conf {
     char ip[sizeof("255.255.255.255")];
     char netmask[sizeof("255.255.255.255")];
+    uint8_t mac[sizeof("aa:bb:cc:dd:ee:ff")];
     descsock_client_spec_t *client_spec;
 };
 
 enum {
     FLAG_START=127,
-    FLAG_NAME,
+    FLAG_TENANT_NAME,
     FLAG_SVC_ID,
     FLAG_TAP_IP,
     FLAG_TAP_NETMASK
@@ -49,8 +50,10 @@ enum {
 
 static const struct option long_opt[] =
 {
-    {"name",         required_argument,  0, FLAG_NAME},
-    {"svc_id",       required_argument,  0, FLAG_SVC_ID},
+    {"tenant-name",         required_argument,  0, FLAG_TENANT_NAME},
+    {"svc_id",              required_argument,  0, FLAG_SVC_ID},
+    {"tenant-ip",           required_argument,  0, FLAG_TAP_IP},
+    {"tenant-netmask",      required_argument,  0, FLAG_TAP_NETMASK},
     {0, 0, 0, 0}
 };
 
@@ -104,6 +107,14 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    printf("Starting tenant\n"
+            "name: %s\n"
+            "svc_id %d\n"
+            "ip: %s\n"
+            "netmask: %s\n"
+            "mac: %s\n",
+            tenant_conf.client_spec->tenant_name, tenant_conf.client_spec->svc_id, tenant_conf.ip,
+                tenant_conf.netmask, tenant_conf.mac);
     /* set configs for this client */
     // snprintf(client->master_socket_path, DESCSOCK_CLIENT_PATHLEN, "%s", MASTER_SOCKET_PATH);
     // snprintf(client->dma_shmem_path, DESCSOCK_CLIENT_PATHLEN, "%s", HUGEPAGES_PATH);
@@ -304,6 +315,7 @@ int tap_open(const char *name, int mtu) {
     struct ifreq ifr = {0};
     /* The static MAC address we will use for our TAP interface */
     uint8_t mac[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xf5};
+    strcpy((char*)tenant_conf.mac, (char*)mac);
 
     int fd = open("/dev/net/tun", O_RDWR);
     /* general socket to make IOCTL calls to net_device */
@@ -344,7 +356,7 @@ int tap_open(const char *name, int mtu) {
     struct sockaddr_in tap_ip_addr;
     tap_ip_addr.sin_family = AF_INET;
     tap_ip_addr.sin_port = 0;
-    inet_pton(AF_INET, TAP_IP_ADDRESS, &(tap_ip_addr.sin_addr));
+    inet_pton(AF_INET, tenant_conf.ip, &(tap_ip_addr.sin_addr));
     memcpy(&ifr.ifr_addr, &tap_ip_addr, sizeof(struct sockaddr));
     if(ioctl(access_socket, SIOCSIFADDR, &ifr) < 0) {
         printf("Error setting IP with iocl() ");
@@ -355,7 +367,7 @@ int tap_open(const char *name, int mtu) {
     struct sockaddr_in tap_subnet_mask;
     tap_subnet_mask.sin_family = AF_INET;
     tap_subnet_mask.sin_port = 0;
-    inet_pton(AF_INET, TAP_SUBNET_MASK, &(tap_subnet_mask.sin_addr));
+    inet_pton(AF_INET, tenant_conf.netmask, &(tap_subnet_mask.sin_addr));
     memcpy(&ifr.ifr_addr, &tap_subnet_mask, sizeof(struct sockaddr));
     if(ioctl(access_socket, SIOCSIFNETMASK, &ifr) < 0) {
         printf("Error setting IP with iocl() ");
@@ -454,6 +466,12 @@ init_conf(int sys_argc, char **sys_argv, descsock_client_spec_t *client)
     int c;
     int long_idx  = 1;
 
+    if(sys_argc <= 4) {
+        printf("\n");
+        sys_usage();
+        return false;
+    }
+
     /* set dma path and master socket path */
     snprintf(client->master_socket_path, DESCSOCK_CLIENT_PATHLEN, "%s", MASTER_SOCKET_PATH);
     snprintf(client->dma_shmem_path, DESCSOCK_CLIENT_PATHLEN, "%s", HUGEPAGES_PATH);
@@ -469,7 +487,7 @@ init_conf(int sys_argc, char **sys_argv, descsock_client_spec_t *client)
                     exit(EXIT_FAILURE);
                 }
                 break;
-            case FLAG_NAME:
+            case FLAG_TENANT_NAME:
                 snprintf(client->tenant_name, DESCSOCK_CLIENT_PATHLEN, "%s", optarg);
                 break;
             case FLAG_TAP_IP:
@@ -496,11 +514,7 @@ static void
 sys_usage()
 {
     const char *unix_usage =
-        "usage: ./descsock_lib --name=tenant_name --svc_id=9  etc...\n"
-        "options\n"
-        "   --name                        tenant name\n"
-        "   --svc_id=service id            \n"
-        "";
+        "usage: ./tap_tenant --tenant-name=name --svc_id=9  --tenant-ip=1.2.3.4 --tenant-netmask=255.255.255.255\n";
 
     printf(unix_usage);
 }
