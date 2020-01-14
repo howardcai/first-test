@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
-
+#include <getopt.h>
 /* Tun/Tap related. */
 #include <netinet/ether.h>
 #include <linux/if.h>
@@ -33,12 +33,39 @@
 #define TAP_IP_ADDRESS      "192.172.5.100"
 #define TAP_SUBNET_MASK     "255.255.255.0"
 
+struct tenant_conf {
+    char ip[sizeof("255.255.255.255")];
+    char netmask[sizeof("255.255.255.255")];
+    descsock_client_spec_t *client_spec;
+};
+
+enum {
+    FLAG_START=127,
+    FLAG_NAME,
+    FLAG_SVC_ID,
+    FLAG_TAP_IP,
+    FLAG_TAP_NETMASK
+};
+
+static const struct option long_opt[] =
+{
+    {"name",         required_argument,  0, FLAG_NAME},
+    {"svc_id",       required_argument,  0, FLAG_SVC_ID},
+    {0, 0, 0, 0}
+};
+
+static struct tenant_conf tenant_conf = {
+    .client_spec = NULL,
+};
+
 /* structure buf used for Tx or Rx  */
 struct client_buf {
     void *base;
     uint32_t len;
 };
 
+static bool init_conf(int argc, char **argv, descsock_client_spec_t *tenant_conf);
+static void sys_usage();
 uint16_t chksum(uint16_t *buf, int nwords);
 void prep_dummypkt(void *buf_base);
 void send_packets(int count);
@@ -70,18 +97,22 @@ int main(int argc, char *argv[]) {
     struct epoll_event ev;
     struct epoll_event events[2];
 
-    descsock_client_spec_t *client = malloc(sizeof(descsock_client_spec_t));
+    tenant_conf.client_spec = malloc(sizeof(descsock_client_spec_t));
 
+    if(!init_conf(argc, argv, tenant_conf.client_spec)) {
+        printf("Failed to initialize\n");
+        exit(EXIT_FAILURE);
+    }
 
     /* set configs for this client */
-    snprintf(client->master_socket_path, DESCSOCK_CLIENT_PATHLEN, "%s", MASTER_SOCKET_PATH);
-    snprintf(client->dma_shmem_path, DESCSOCK_CLIENT_PATHLEN, "%s", HUGEPAGES_PATH);
-    snprintf(client->tenant_name, DESCSOCK_CLIENT_PATHLEN, "%s", TENANT_NAME);
-    client->svc_id = SVC_ID;
+    // snprintf(client->master_socket_path, DESCSOCK_CLIENT_PATHLEN, "%s", MASTER_SOCKET_PATH);
+    // snprintf(client->dma_shmem_path, DESCSOCK_CLIENT_PATHLEN, "%s", HUGEPAGES_PATH);
+    // snprintf(client->tenant_name, DESCSOCK_CLIENT_PATHLEN, "%s", TENANT_NAME);
+    // client->svc_id = SVC_ID;
 
 
     /* Initialize descsock library */
-    ret = descsock_client_open(client, 0);
+    ret = descsock_client_open(tenant_conf.client_spec, 0);
     if(ret == -1) {
         printf("Error client_open\n");
         exit(EXIT_FAILURE);
@@ -157,7 +188,7 @@ int main(int argc, char *argv[]) {
         usleep(20);
     }
 
-    free(client);
+    free(tenant_conf.client_spec);
 
     descsock_client_close();
 
@@ -407,9 +438,69 @@ tap_send(int tapfd, void *buf, uint32_t len)
     return descsock_client_send_extended(&ifh, buf, len, 0);
     //return descsock_client_send(buf, len, 0);
 }
+
 size_t
 tap_recv(int tapfd, void *buf, uint32_t len)
 {
     /* Consume 32 packets per poll */
     return descsock_client_recv(buf, DESCSOCK_CLIENT_BUF_SIZE, 0);
+}
+
+extern char *optarg;
+
+static bool
+init_conf(int sys_argc, char **sys_argv, descsock_client_spec_t *client)
+{
+    int c;
+    int long_idx  = 1;
+
+    /* set dma path and master socket path */
+    snprintf(client->master_socket_path, DESCSOCK_CLIENT_PATHLEN, "%s", MASTER_SOCKET_PATH);
+    snprintf(client->dma_shmem_path, DESCSOCK_CLIENT_PATHLEN, "%s", HUGEPAGES_PATH);
+
+    do {
+        c = getopt_long(sys_argc, sys_argv, "", long_opt, &long_idx);
+
+        switch(c) {
+            case FLAG_SVC_ID:
+                client->svc_id = atoi(optarg);
+                if(client->svc_id < 0) {
+                    printf("Bad serviceid for tenant\n");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            case FLAG_NAME:
+                snprintf(client->tenant_name, DESCSOCK_CLIENT_PATHLEN, "%s", optarg);
+                break;
+            case FLAG_TAP_IP:
+                strcpy(tenant_conf.ip, optarg);
+                break;
+            case FLAG_TAP_NETMASK:
+                strcpy(tenant_conf.netmask, optarg);
+                break;
+            case 'h':
+            case '?':
+            case ':':
+                printf("\n");
+                sys_usage();
+                return (false);
+        }
+
+
+    } while(c != -1);
+
+    return true;
+}
+
+static void
+sys_usage()
+{
+    const char *unix_usage =
+        "usage: ./descsock_lib --name=tenant_name --svc_id=9  etc...\n"
+        "options\n"
+        "   --name                        tenant name\n"
+        "   --svc_id=service id            \n"
+        "";
+
+    printf(unix_usage);
 }
