@@ -52,7 +52,7 @@ static ssize_t tap_recv(int tapfd, void *buf, uint32_t len);
 struct tenant_conf {
     char ip[sizeof("255.255.255.255")];
     char netmask[sizeof("255.255.255.255")];
-    uint8_t mac[sizeof("aa:bb:cc:dd:ee:ff")];
+    uint8_t mac[ETH_ALEN];
     descsock_client_spec_t *client_spec;
 };
 
@@ -173,6 +173,8 @@ int main(int argc, char *argv[]) {
             void *rxbuf = malloc(DESCSOCK_CLIENT_BUF_SIZE);
             /* read data from descsock lib */
             read = tap_recv(tapfd, rxbuf, 2048);
+            printf("Receiving buf\n");
+            descsock_client_print_buf(rxbuf, read);
             /* Write data to tap interface */
             tap_write(tapfd, rxbuf, read);
 
