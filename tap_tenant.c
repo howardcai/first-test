@@ -36,14 +36,14 @@ static void tap_fill_macaddr(int fd, uint8_t *mac);
 /*
  * Kernel facing read, write calls
  */
-static size_t tap_read(int tapfd, void *buf, uint32_t len);
-static size_t tap_write(int tapfd, void *buf, uint32_t len);
+static ssize_t tap_read(int tapfd, void *buf, uint32_t len);
+static ssize_t tap_write(int tapfd, void *buf, uint32_t len);
 
 /*
  * Descsock facing API, read/write calls
  */
-static size_t tap_send(int tapfd, void *buf, uint32_t len);
-static size_t tap_recv(int tapfd, void *buf, uint32_t len);
+static ssize_t tap_send(int tapfd, void *buf, uint32_t len);
+static ssize_t tap_recv(int tapfd, void *buf, uint32_t len);
 
 
 /* 
@@ -319,21 +319,21 @@ tap_fill_macaddr(int fd, uint8_t *mac) {
 }
 
 /* Read from Kernel */
-size_t
+ssize_t
 tap_read(int tapfd, void *buf, uint32_t len)
 {
     return read(tapfd, buf, len);
 }
 
 /* Write to Kernel */
-size_t
+ssize_t
 tap_write(int tapfd, void *buf, uint32_t len)
 {
     return write(tapfd, buf, len);
 }
 
 /* Send buf to descsock driver */
-size_t
+ssize_t
 tap_send(int tapfd, void *buf, uint32_t len)
 {
     dsk_ifh_fields_t ifh;
@@ -349,7 +349,7 @@ tap_send(int tapfd, void *buf, uint32_t len)
 }
 
 /* Receive buf from descsock driver */
-size_t
+ssize_t
 tap_recv(int tapfd, void *buf, uint32_t len)
 {
     /* Consume 32 packets per poll */
