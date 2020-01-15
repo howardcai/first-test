@@ -22,17 +22,13 @@
 #define ETHER_HEADER_LEN    sizeof(struct ether_header)
 #define IP_HEADER_LEN       sizeof(struct iphdr)
 
-/*
- * Hard coded values used for this client config
- */
-#define SVC_ID              10
 #define MASTER_SOCKET_PATH  "/var/run/platform/tenant_doorbell.sock"
 #define HUGEPAGES_PATH      "/var/huge_pages/2048kB"
-#define TENANT_NAME         "tap_sytem_tenant"
 
-#define TAP_IP_ADDRESS      "192.172.5.100"
-#define TAP_SUBNET_MASK     "255.255.255.0"
 
+/* 
+ * TAP tenant config
+ */
 struct tenant_conf {
     char ip[sizeof("255.255.255.255")];
     char netmask[sizeof("255.255.255.255")];
@@ -69,12 +65,10 @@ struct client_buf {
 
 static bool init_conf(int argc, char **argv, descsock_client_spec_t *tenant_conf);
 static void sys_usage();
-uint16_t chksum(uint16_t *buf, int nwords);
-void prep_dummypkt(void *buf_base);
 void send_packets(int count);
 void descsock_client_print_buf(void * buf, int buf_len);
-int tap_open(const char *name, int mtu);
-void tap_fill_macaddr(int fd, uint8_t *mac);
+static int tap_open(const char *name, int mtu);
+static void tap_fill_macaddr(int fd, uint8_t *mac);
 
 /*
  * Kernel facing read, write calls
@@ -115,12 +109,6 @@ int main(int argc, char *argv[]) {
             "mac: %s\n",
             tenant_conf.client_spec->tenant_name, tenant_conf.client_spec->svc_id, tenant_conf.ip,
                 tenant_conf.netmask, tenant_conf.mac);
-    /* set configs for this client */
-    // snprintf(client->master_socket_path, DESCSOCK_CLIENT_PATHLEN, "%s", MASTER_SOCKET_PATH);
-    // snprintf(client->dma_shmem_path, DESCSOCK_CLIENT_PATHLEN, "%s", HUGEPAGES_PATH);
-    // snprintf(client->tenant_name, DESCSOCK_CLIENT_PATHLEN, "%s", TENANT_NAME);
-    // client->svc_id = SVC_ID;
-
 
     /* Initialize descsock library */
     ret = descsock_client_open(tenant_conf.client_spec, 0);
@@ -207,6 +195,7 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
+/* print buf in wireshark format */
 void
 descsock_client_print_buf(void * buf, int buf_len)
 {
@@ -229,89 +218,9 @@ descsock_client_print_buf(void * buf, int buf_len)
     printf("\n\n");
 }
 
-/*
- * Allocate <count> dummy packet to send
- */
-void send_packets(int count)
-{
-    int i;
-
-    struct client_buf bufs[count];
-
-     /*Allocate mem for 10 packets */
-    for(i = 0; i < count; i++) {
-        bufs[i].base = malloc(DESCSOCK_CLIENT_BUF_SIZE);
-        if(bufs[i].base == NULL) {
-            printf("FAiled\n");
-            exit(EXIT_FAILURE);
-        }
-
-        prep_dummypkt(bufs[i].base);
-        bufs[i].len = ETHER_HEADER_LEN + IP_HEADER_LEN + sizeof(struct client_buf);
-    }
-
-    /* send packets */
-    for(i = 0; i < count; i++) {
-        descsock_client_send(bufs[i].base, bufs[i].len, 0);
-    }
-
-    /*Free sent packets */
-    for(i = 0; i < count; i++) {
-        free(bufs[i].base);
-    }
-
-}
-void prep_dummypkt(void *buf_base)
-{
-     /* Add ether header to buf */
-    struct ether_header *eth = (struct ether_header *)buf_base;
-    eth->ether_dhost[0] = 0x00;
-    eth->ether_dhost[1] = 0x00;
-    eth->ether_dhost[2] = 0x00;
-    eth->ether_dhost[3] = 0x00;
-    eth->ether_dhost[4] = 0x00;
-    eth->ether_dhost[5] = 0x06;
-
-    eth->ether_shost[0] = 0x00;
-    eth->ether_shost[1] = 0x00;
-    eth->ether_shost[2] = 0x00;
-    eth->ether_shost[3] = 0x00;
-    eth->ether_shost[4] = 0x00;
-    eth->ether_shost[5] = 0x05;
-    eth->ether_type = 0x0800;
-
-
-
-    /* add IP header to buf */
-    struct iphdr *ip = (struct iphdr *) (buf_base + ETHER_HEADER_LEN);
-    ip->ttl = 64;
-    ip->tot_len = ETHER_HEADER_LEN + IP_HEADER_LEN;
-    ip->protocol = 1;
-    ip->version = 4;
-    ip->saddr = 3232235777; /* 192.168.1.1 */
-    ip->daddr = 3232235876; /* 192.168.1.100 */
-    //ip->check = chksum( (uint16_t*)buf_base,  ETHER_HEADER_LEN + IP_HEADER_LEN);
-
-    //XXX: add ip source and dest
-
-}
-
-uint16_t chksum(uint16_t *buf, int nwords)
-{
-        uint64_t sum;
-
-        for(sum = 0; nwords > 0; nwords--) {
-             sum += *buf++;
-        }
-
-        sum = (sum >> 16) + (sum &0xffff);
-        sum += (sum >> 16);
-
-        return (uint16_t)(~sum);
-
-}
-
-int tap_open(const char *name, int mtu) {
+/* Open tap interface with IP/mask and mac address */
+static int
+tap_open(const char *name, int mtu) {
     struct ifreq ifr = {0};
     /* The static MAC address we will use for our TAP interface */
     uint8_t mac[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xf5};
@@ -339,11 +248,11 @@ int tap_open(const char *name, int mtu) {
      * If the user passed MTU via commandline args use that MTU,
      * else use 1500
      */
-    // ifr.ifr_mtu = (mtu != 0)? mtu : 1500;
-    // if(ioctl(access_socket, SIOCSIFMTU, &ifr) < 0 ) {
-    //     printf("Setting MTU failed");
-    //     exit(-1);
-    // }
+    ifr.ifr_mtu = (mtu != 0)? mtu : 1500;
+    if(ioctl(access_socket, SIOCSIFMTU, &ifr) < 0 ) {
+        printf("Setting MTU failed");
+        exit(-1);
+    }
 
     /* Set Up static MAC address to make things easier to debug */
     ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
@@ -383,18 +292,6 @@ int tap_open(const char *name, int mtu) {
     /* Get and print MAC */
     printf("MAC address for %s TAP interface\n", name);
     tap_fill_macaddr(fd, mac);
-
-    /*
-     * Commands to set up tap sub-interface and make debbuging faster, can be removed ofcourse, just an
-     * example of how I have my network configured with Neoncity
-     */
-    // char mtu_str[BUFSIZ];
-    // snprintf(mtu_str, BUFSIZ, "ifconfig pde0.99 mtu %d", mtu);
-    // system("ip link add link pde0 name pde0.99 type vlan id 99");
-    // system("ifconfig pde0.99 192.168.99.99 netmask 255.255.255.0");
-    // system(mtu_str);
-    // system("arp -s 192.168.99.100 00:00:00:00:03:14");
-    // system("arp -s 10.0.200.51 00:00:00:00:03:14");
 
     return fd;
 }
