@@ -64,8 +64,7 @@ struct client_buf {
 };
 
 static bool init_conf(int argc, char **argv, descsock_client_spec_t *tenant_conf);
-static void sys_usage();
-void send_packets(int count);
+static void sys_usage();static 
 void descsock_client_print_buf(void * buf, int buf_len);
 static int tap_open(const char *name, int mtu);
 static void tap_fill_macaddr(int fd, uint8_t *mac);
@@ -73,14 +72,14 @@ static void tap_fill_macaddr(int fd, uint8_t *mac);
 /*
  * Kernel facing read, write calls
  */
-size_t tap_read(int tapfd, void *buf, uint32_t len);
-size_t tap_write(int tapfd, void *buf, uint32_t len);
+static size_t tap_read(int tapfd, void *buf, uint32_t len);
+static size_t tap_write(int tapfd, void *buf, uint32_t len);
 
 /*
  * Descsock facing API, read/write calls
  */
-size_t tap_send(int tapfd, void *buf, uint32_t len);
-size_t tap_recv(int tapfd, void *buf, uint32_t len);
+static size_t tap_send(int tapfd, void *buf, uint32_t len);
+static size_t tap_recv(int tapfd, void *buf, uint32_t len);
 
 
 int main(int argc, char *argv[]) {
@@ -296,10 +295,11 @@ tap_open(const char *name, int mtu) {
     return fd;
 }
 
-   /*
+/*
  * Fill out an array of u8 from a TAP interface mac address
  */
-void tap_fill_macaddr(int fd, uint8_t *mac) {
+static void
+tap_fill_macaddr(int fd, uint8_t *mac) {
     struct ifreq ifr = {0};
     int i;
     if(fd < 0) {
@@ -322,7 +322,8 @@ void tap_fill_macaddr(int fd, uint8_t *mac) {
     printf("\n");
 }
 
-size_t tap_read(int tapfd, void *buf, uint32_t len)
+size_t
+tap_read(int tapfd, void *buf, uint32_t len)
 {
     return read(tapfd, buf, len);
 }
