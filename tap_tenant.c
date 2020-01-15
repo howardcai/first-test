@@ -22,8 +22,28 @@
 #define ETHER_HEADER_LEN    sizeof(struct ether_header)
 #define IP_HEADER_LEN       sizeof(struct iphdr)
 
+/* We want to hardcode these two becuase they're not likely to change anytime soon */
 #define MASTER_SOCKET_PATH  "/var/run/platform/tenant_doorbell.sock"
 #define HUGEPAGES_PATH      "/var/huge_pages/2048kB"
+
+
+static bool init_conf(int argc, char **argv, descsock_client_spec_t *tenant_conf);
+static void sys_usage();static 
+void descsock_client_print_buf(void * buf, int buf_len);
+static int tap_open(const char *name, int mtu);
+static void tap_fill_macaddr(int fd, uint8_t *mac);
+
+/*
+ * Kernel facing read, write calls
+ */
+static size_t tap_read(int tapfd, void *buf, uint32_t len);
+static size_t tap_write(int tapfd, void *buf, uint32_t len);
+
+/*
+ * Descsock facing API, read/write calls
+ */
+static size_t tap_send(int tapfd, void *buf, uint32_t len);
+static size_t tap_recv(int tapfd, void *buf, uint32_t len);
 
 
 /* 
@@ -56,30 +76,6 @@ static const struct option long_opt[] =
 static struct tenant_conf tenant_conf = {
     .client_spec = NULL,
 };
-
-/* structure buf used for Tx or Rx  */
-struct client_buf {
-    void *base;
-    uint32_t len;
-};
-
-static bool init_conf(int argc, char **argv, descsock_client_spec_t *tenant_conf);
-static void sys_usage();static 
-void descsock_client_print_buf(void * buf, int buf_len);
-static int tap_open(const char *name, int mtu);
-static void tap_fill_macaddr(int fd, uint8_t *mac);
-
-/*
- * Kernel facing read, write calls
- */
-static size_t tap_read(int tapfd, void *buf, uint32_t len);
-static size_t tap_write(int tapfd, void *buf, uint32_t len);
-
-/*
- * Descsock facing API, read/write calls
- */
-static size_t tap_send(int tapfd, void *buf, uint32_t len);
-static size_t tap_recv(int tapfd, void *buf, uint32_t len);
 
 
 int main(int argc, char *argv[]) {
@@ -322,18 +318,21 @@ tap_fill_macaddr(int fd, uint8_t *mac) {
     printf("\n");
 }
 
+/* Read from Kernel */
 size_t
 tap_read(int tapfd, void *buf, uint32_t len)
 {
     return read(tapfd, buf, len);
 }
 
+/* Write to Kernel */
 size_t
 tap_write(int tapfd, void *buf, uint32_t len)
 {
     return write(tapfd, buf, len);
 }
 
+/* Send buf to descsock driver */
 size_t
 tap_send(int tapfd, void *buf, uint32_t len)
 {
@@ -349,6 +348,7 @@ tap_send(int tapfd, void *buf, uint32_t len)
     //return descsock_client_send(buf, len, 0);
 }
 
+/* Receive buf from descsock driver */
 size_t
 tap_recv(int tapfd, void *buf, uint32_t len)
 {
@@ -358,6 +358,7 @@ tap_recv(int tapfd, void *buf, uint32_t len)
 
 extern char *optarg;
 
+/* Parse command line user args to build config for tenant */
 static bool
 init_conf(int sys_argc, char **sys_argv, descsock_client_spec_t *client)
 {
