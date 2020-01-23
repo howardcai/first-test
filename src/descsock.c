@@ -658,6 +658,9 @@ descsock_tx_single_desc_pkt(struct packet *pkt, dsk_ifh_fields_t *ifh, UINT32 ti
     }
     else {
         send_desc->flags = 0;
+        send_desc->dm = 0;
+        send_desc->did = 0;
+        send_desc->svc = 0;
     }
 
     /* Check if this packet is less than 64 bytes */
