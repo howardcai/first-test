@@ -635,7 +635,7 @@ descsock_tx_single_desc_pkt(struct packet *pkt, dsk_ifh_fields_t *ifh, UINT32 ti
     tx_completions_ctx_t *clean_ctx;
     laden_desc_fifo_t *tx_out_fifo = &sc->tx_queue.outbound_descriptors[tier];
     laden_buf_desc_t *send_desc = (laden_buf_desc_t *)&tx_out_fifo->c[tx_out_fifo->prod_idx];
-    laden_desc_flags_t laden_desc_flags;
+    laden_desc_flags_t laden_desc_flags = { 0 };
 
     /* Get buf data from packet */
     send_desc->addr = (UINT64) pkt->xf_first->data;
@@ -655,6 +655,9 @@ descsock_tx_single_desc_pkt(struct packet *pkt, dsk_ifh_fields_t *ifh, UINT32 ti
         send_desc->nti = ifh->nti;
         send_desc->dm = ifh->dm;
         send_desc->flags = laden_desc_flags.tx.u8;
+    }
+    else {
+        send_desc->flags = 0;
     }
 
     /* Check if this packet is less than 64 bytes */
