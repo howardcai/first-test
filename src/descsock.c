@@ -639,7 +639,7 @@ descsock_tx_single_desc_pkt(struct packet *pkt, dsk_ifh_fields_t *ifh, UINT32 ti
 
     /* Get buf data from packet */
     send_desc->addr = (UINT64) pkt->xf_first->data;
-    is_mod4_aligned(send_desc->addr);
+    is_4b_aligned(send_desc->addr);
     send_desc->type = TX_BUF;
     send_desc->sop = 1;
     send_desc->eop = 1;

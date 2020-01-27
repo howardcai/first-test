@@ -83,7 +83,7 @@ xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
         /*
          * Check for mod 4 alignment
          */
-        is_mod4_aligned((UINT64)xf->data);
+        is_4b_aligned((UINT64)xf->data);
 
         //xxx: add stats here
         /* Half of bufs are used as Rx DMA bufs and the other half for Tx DMA bufs */
@@ -197,7 +197,7 @@ int xfrag_pool_avail_count()
 
 /* Simple check for mod 4 alignment */
 void
-is_mod4_aligned(UINT64 buf)
+is_4b_aligned(UINT64 buf)
 {
     uint8_t mod4aligned =  (buf & 3) == 0;
     assert(mod4aligned);
