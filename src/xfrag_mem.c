@@ -79,6 +79,13 @@ xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
         void *rawbytes = rawbase + (XFRAG_SIZE * i);
         assert((UINT64)rawbytes + XFRAG_SIZE <= (UINT64)rawbase + sz);
         xf->data = rawbytes;
+        
+        /*
+         * Check for mod 4 alignment
+         */
+        uint8_t mod4aligned =  ((uint64_t)xf->data & 3) == 0;
+        assert(mod4aligned);
+        
 
         //xxx: add stats here
         /* Half of bufs are used as Rx DMA bufs and the other half for Tx DMA bufs */
