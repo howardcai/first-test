@@ -106,6 +106,7 @@ descsock_client_stats_t  descsock_client_stats = {
         .tx_bytes_in = 0,
         .tx_bytes_in = 0,
         .tx_bytes_out = 0,
+        .not4b = 0,
 };
 
 /*
