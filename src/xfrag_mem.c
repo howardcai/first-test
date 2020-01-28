@@ -80,8 +80,6 @@ xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
         void *rawbytes = rawbase + (XFRAG_SIZE * i);
         assert((UINT64)rawbytes + XFRAG_SIZE <= (UINT64)rawbase + sz);
         xf->data = rawbytes;
-        printf("xf->data X%llx\n", (UINT64)xf->data);
-        
         /*
          * Check for mod 4 alignment
          */
