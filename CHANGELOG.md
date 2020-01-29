@@ -2,6 +2,18 @@
 
 <!--- next entry here -->
 
+## 1.3.4
+2020-01-29
+
+### Fixes
+
+- checking for mod 4 alignment in descosck mem pools (fcd8fbe492c7188436289e89a221ad2c9a20a93a)
+- check for mod 4 alignment (07ffc7e4fab24c9c9c95b2e465d4ca9db6cac3c6)
+- renamed function (5383bd06b7e5d6a5e19a6602c9f6d69b34aa9735)
+- add counter for non 4b aligned buffers (57502018948b75cfff95fa91a22011c3f4446c3c)
+- add stat counter for non 4byte alinged buffers (e7f9cad535526ad5526d65532d5668cf0b4fc98e)
+- removed commented out code, renamed var (fbc5a01abb873773bab63a9ca1923416785f5a3e)
+
 ## 1.3.3
 2020-01-23
 
