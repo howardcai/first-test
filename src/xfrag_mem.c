@@ -199,10 +199,9 @@ int xfrag_pool_avail_count()
 void
 is_4b_aligned(UINT64 buf)
 {
-    uint8_t mod4aligned =  (buf & 3) == 0;
-    /* assert(mod4aligned); */
+    uint8_t aligned_4b =  (buf & 3) == 0;
 
-    if(!mod4aligned) {
+    if(!aligned_4b) {
         descsock_client_stats.not4b++;
     }
 }
