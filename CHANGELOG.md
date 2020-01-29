@@ -2,6 +2,22 @@
 
 <!--- next entry here -->
 
+## 1.3.3
+2020-01-23
+
+### Fixes
+
+- initialize send descriptor flags (544ac6796f246e3e08c492275e1de36e360eb789)
+- initialize send descriptor flags to 0 (b73078021899a06ef6f75c15e5f69ddb2e4de190)
+- initialize send descriptor flags to 0 (3e001fd7c91cda9ff4671c83e123c577a1c3fed7)
+
+## 1.3.2
+2020-01-09
+
+### Fixes
+
+- Correct laden descriptor size, add static assert (662bf8e6a57aa7996e3cdec4afd20dfea8b6b262)
+
 ## 1.3.1
 2019-12-06
 
