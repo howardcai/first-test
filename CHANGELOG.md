@@ -2,6 +2,20 @@
 
 <!--- next entry here -->
 
+## 1.4.0
+2020-01-29
+
+### Features
+
+- adding commandline arg support (2632ed72f7127061522c192b78b360a62baeec38)
+- Added more args (a461ff07b1bd00169d68bb56d85e0f53e90033d1)
+- finished adding argv support for tap_tenant (a7ce6961d0accb56c7987ccfee53b5e6128a344c)
+- removed dead code (8a842369d0f68c9965c804e51d1c7abf0f1b1e9a)
+- removed dead code (3a80c4bc4c6707ee75f6bd5c64eaa6d9658d97e3)
+- removed dead code (bc6ccf3502ae25fe6542c0fb0dcc8cc269b098c3)
+- removed dead code (086755c319792f746844efaadea2830a9396f8bd)
+- add mac (b21748cf87761b2f281e7f0ea466c61f03d8c6b0)
+
 ## 1.3.4
 2020-01-29
 
