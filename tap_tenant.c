@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
-
+#include <getopt.h>
 /* Tun/Tap related. */
 #include <netinet/ether.h>
 #include <linux/if.h>
@@ -22,41 +22,60 @@
 #define ETHER_HEADER_LEN    sizeof(struct ether_header)
 #define IP_HEADER_LEN       sizeof(struct iphdr)
 
-/*
- * Hard coded values used for this client config
- */
-#define SVC_ID              10
+/* We want to hardcode these two becuase they're not likely to change anytime soon */
 #define MASTER_SOCKET_PATH  "/var/run/platform/tenant_doorbell.sock"
 #define HUGEPAGES_PATH      "/var/huge_pages/2048kB"
-#define TENANT_NAME         "tap_sytem_tenant"
 
-#define TAP_IP_ADDRESS      "192.172.5.100"
-#define TAP_SUBNET_MASK     "255.255.255.0"
 
-/* structure buf used for Tx or Rx  */
-struct client_buf {
-    void *base;
-    uint32_t len;
-};
-
-uint16_t chksum(uint16_t *buf, int nwords);
-void prep_dummypkt(void *buf_base);
-void send_packets(int count);
+static bool init_conf(int argc, char **argv, descsock_client_spec_t *tenant_conf);
+static void sys_usage();static 
 void descsock_client_print_buf(void * buf, int buf_len);
-int tap_open(const char *name, int mtu);
-void tap_fill_macaddr(int fd, uint8_t *mac);
+static int tap_open(const char *name, int mtu);
+static void tap_fill_macaddr(int fd, uint8_t *mac);
 
 /*
  * Kernel facing read, write calls
  */
-size_t tap_read(int tapfd, void *buf, uint32_t len);
-size_t tap_write(int tapfd, void *buf, uint32_t len);
+static ssize_t tap_read(int tapfd, void *buf, uint32_t len);
+static ssize_t tap_write(int tapfd, void *buf, uint32_t len);
 
 /*
  * Descsock facing API, read/write calls
  */
-size_t tap_send(int tapfd, void *buf, uint32_t len);
-size_t tap_recv(int tapfd, void *buf, uint32_t len);
+static ssize_t tap_send(int tapfd, void *buf, uint32_t len);
+static ssize_t tap_recv(int tapfd, void *buf, uint32_t len);
+
+
+/* 
+ * TAP tenant config
+ */
+struct tenant_conf {
+    char ip[sizeof("255.255.255.255")];
+    char netmask[sizeof("255.255.255.255")];
+    uint8_t mac[ETH_ALEN];
+    descsock_client_spec_t *client_spec;
+};
+
+enum {
+    FLAG_START=127,
+    FLAG_TENANT_NAME,
+    FLAG_SVC_ID,
+    FLAG_TAP_IP,
+    FLAG_TAP_NETMASK
+};
+
+static const struct option long_opt[] =
+{
+    {"tenant-name",         required_argument,  0, FLAG_TENANT_NAME},
+    {"svc_id",              required_argument,  0, FLAG_SVC_ID},
+    {"tenant-ip",           required_argument,  0, FLAG_TAP_IP},
+    {"tenant-netmask",      required_argument,  0, FLAG_TAP_NETMASK},
+    {0, 0, 0, 0}
+};
+
+static struct tenant_conf tenant_conf = {
+    .client_spec = NULL,
+};
 
 
 int main(int argc, char *argv[]) {
@@ -70,18 +89,24 @@ int main(int argc, char *argv[]) {
     struct epoll_event ev;
     struct epoll_event events[2];
 
-    descsock_client_spec_t *client = malloc(sizeof(descsock_client_spec_t));
+    tenant_conf.client_spec = malloc(sizeof(descsock_client_spec_t));
 
+    if(!init_conf(argc, argv, tenant_conf.client_spec)) {
+        printf("Failed to initialize\n");
+        exit(EXIT_FAILURE);
+    }
 
-    /* set configs for this client */
-    snprintf(client->master_socket_path, DESCSOCK_CLIENT_PATHLEN, "%s", MASTER_SOCKET_PATH);
-    snprintf(client->dma_shmem_path, DESCSOCK_CLIENT_PATHLEN, "%s", HUGEPAGES_PATH);
-    snprintf(client->tenant_name, DESCSOCK_CLIENT_PATHLEN, "%s", TENANT_NAME);
-    client->svc_id = SVC_ID;
-
+    printf("Starting tenant\n"
+            "name: %s\n"
+            "svc_id %d\n"
+            "ip: %s\n"
+            "netmask: %s\n"
+            "mac: %s\n",
+            tenant_conf.client_spec->tenant_name, tenant_conf.client_spec->svc_id, tenant_conf.ip,
+                tenant_conf.netmask, tenant_conf.mac);
 
     /* Initialize descsock library */
-    ret = descsock_client_open(client, 0);
+    ret = descsock_client_open(tenant_conf.client_spec, 0);
     if(ret == -1) {
         printf("Error client_open\n");
         exit(EXIT_FAILURE);
@@ -148,6 +173,8 @@ int main(int argc, char *argv[]) {
             void *rxbuf = malloc(DESCSOCK_CLIENT_BUF_SIZE);
             /* read data from descsock lib */
             read = tap_recv(tapfd, rxbuf, 2048);
+            printf("Receiving buf\n");
+            descsock_client_print_buf(rxbuf, read);
             /* Write data to tap interface */
             tap_write(tapfd, rxbuf, read);
             printf("Receiving buf\n");
@@ -159,7 +186,7 @@ int main(int argc, char *argv[]) {
         usleep(20);
     }
 
-    free(client);
+    free(tenant_conf.client_spec);
 
     descsock_client_close();
 
@@ -167,6 +194,7 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
+/* print buf in wireshark format */
 void
 descsock_client_print_buf(void * buf, int buf_len)
 {
@@ -189,92 +217,13 @@ descsock_client_print_buf(void * buf, int buf_len)
     printf("\n\n");
 }
 
-/*
- * Allocate <count> dummy packet to send
- */
-void send_packets(int count)
-{
-    int i;
-
-    struct client_buf bufs[count];
-
-     /*Allocate mem for 10 packets */
-    for(i = 0; i < count; i++) {
-        bufs[i].base = malloc(DESCSOCK_CLIENT_BUF_SIZE);
-        if(bufs[i].base == NULL) {
-            printf("FAiled\n");
-            exit(EXIT_FAILURE);
-        }
-
-        prep_dummypkt(bufs[i].base);
-        bufs[i].len = ETHER_HEADER_LEN + IP_HEADER_LEN + sizeof(struct client_buf);
-    }
-
-    /* send packets */
-    for(i = 0; i < count; i++) {
-        descsock_client_send(bufs[i].base, bufs[i].len, 0);
-    }
-
-    /*Free sent packets */
-    for(i = 0; i < count; i++) {
-        free(bufs[i].base);
-    }
-
-}
-void prep_dummypkt(void *buf_base)
-{
-     /* Add ether header to buf */
-    struct ether_header *eth = (struct ether_header *)buf_base;
-    eth->ether_dhost[0] = 0x00;
-    eth->ether_dhost[1] = 0x00;
-    eth->ether_dhost[2] = 0x00;
-    eth->ether_dhost[3] = 0x00;
-    eth->ether_dhost[4] = 0x00;
-    eth->ether_dhost[5] = 0x06;
-
-    eth->ether_shost[0] = 0x00;
-    eth->ether_shost[1] = 0x00;
-    eth->ether_shost[2] = 0x00;
-    eth->ether_shost[3] = 0x00;
-    eth->ether_shost[4] = 0x00;
-    eth->ether_shost[5] = 0x05;
-    eth->ether_type = 0x0800;
-
-
-
-    /* add IP header to buf */
-    struct iphdr *ip = (struct iphdr *) (buf_base + ETHER_HEADER_LEN);
-    ip->ttl = 64;
-    ip->tot_len = ETHER_HEADER_LEN + IP_HEADER_LEN;
-    ip->protocol = 1;
-    ip->version = 4;
-    ip->saddr = 3232235777; /* 192.168.1.1 */
-    ip->daddr = 3232235876; /* 192.168.1.100 */
-    //ip->check = chksum( (uint16_t*)buf_base,  ETHER_HEADER_LEN + IP_HEADER_LEN);
-
-    //XXX: add ip source and dest
-
-}
-
-uint16_t chksum(uint16_t *buf, int nwords)
-{
-        uint64_t sum;
-
-        for(sum = 0; nwords > 0; nwords--) {
-             sum += *buf++;
-        }
-
-        sum = (sum >> 16) + (sum &0xffff);
-        sum += (sum >> 16);
-
-        return (uint16_t)(~sum);
-
-}
-
-int tap_open(const char *name, int mtu) {
+/* Open tap interface with IP/mask and mac address */
+static int
+tap_open(const char *name, int mtu) {
     struct ifreq ifr = {0};
     /* The static MAC address we will use for our TAP interface */
     uint8_t mac[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0xf5};
+    strcpy((char*)tenant_conf.mac, (char*)mac);
 
     int fd = open("/dev/net/tun", O_RDWR);
     /* general socket to make IOCTL calls to net_device */
@@ -298,11 +247,11 @@ int tap_open(const char *name, int mtu) {
      * If the user passed MTU via commandline args use that MTU,
      * else use 1500
      */
-    // ifr.ifr_mtu = (mtu != 0)? mtu : 1500;
-    // if(ioctl(access_socket, SIOCSIFMTU, &ifr) < 0 ) {
-    //     printf("Setting MTU failed");
-    //     exit(-1);
-    // }
+    ifr.ifr_mtu = (mtu != 0)? mtu : 1500;
+    if(ioctl(access_socket, SIOCSIFMTU, &ifr) < 0 ) {
+        printf("Setting MTU failed");
+        exit(-1);
+    }
 
     /* Set Up static MAC address to make things easier to debug */
     ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
@@ -315,7 +264,7 @@ int tap_open(const char *name, int mtu) {
     struct sockaddr_in tap_ip_addr;
     tap_ip_addr.sin_family = AF_INET;
     tap_ip_addr.sin_port = 0;
-    inet_pton(AF_INET, TAP_IP_ADDRESS, &(tap_ip_addr.sin_addr));
+    inet_pton(AF_INET, tenant_conf.ip, &(tap_ip_addr.sin_addr));
     memcpy(&ifr.ifr_addr, &tap_ip_addr, sizeof(struct sockaddr));
     if(ioctl(access_socket, SIOCSIFADDR, &ifr) < 0) {
         printf("Error setting IP with iocl() ");
@@ -326,7 +275,7 @@ int tap_open(const char *name, int mtu) {
     struct sockaddr_in tap_subnet_mask;
     tap_subnet_mask.sin_family = AF_INET;
     tap_subnet_mask.sin_port = 0;
-    inet_pton(AF_INET, TAP_SUBNET_MASK, &(tap_subnet_mask.sin_addr));
+    inet_pton(AF_INET, tenant_conf.netmask, &(tap_subnet_mask.sin_addr));
     memcpy(&ifr.ifr_addr, &tap_subnet_mask, sizeof(struct sockaddr));
     if(ioctl(access_socket, SIOCSIFNETMASK, &ifr) < 0) {
         printf("Error setting IP with iocl() ");
@@ -343,25 +292,14 @@ int tap_open(const char *name, int mtu) {
     printf("MAC address for %s TAP interface\n", name);
     tap_fill_macaddr(fd, mac);
 
-    /*
-     * Commands to set up tap sub-interface and make debbuging faster, can be removed ofcourse, just an
-     * example of how I have my network configured with Neoncity
-     */
-    // char mtu_str[BUFSIZ];
-    // snprintf(mtu_str, BUFSIZ, "ifconfig pde0.99 mtu %d", mtu);
-    // system("ip link add link pde0 name pde0.99 type vlan id 99");
-    // system("ifconfig pde0.99 192.168.99.99 netmask 255.255.255.0");
-    // system(mtu_str);
-    // system("arp -s 192.168.99.100 00:00:00:00:03:14");
-    // system("arp -s 10.0.200.51 00:00:00:00:03:14");
-
     return fd;
 }
 
-   /*
+/*
  * Fill out an array of u8 from a TAP interface mac address
  */
-void tap_fill_macaddr(int fd, uint8_t *mac) {
+static void
+tap_fill_macaddr(int fd, uint8_t *mac) {
     struct ifreq ifr = {0};
     int i;
     if(fd < 0) {
@@ -384,18 +322,22 @@ void tap_fill_macaddr(int fd, uint8_t *mac) {
     printf("\n");
 }
 
-size_t tap_read(int tapfd, void *buf, uint32_t len)
+/* Read from Kernel */
+ssize_t
+tap_read(int tapfd, void *buf, uint32_t len)
 {
     return read(tapfd, buf, len);
 }
 
-size_t
+/* Write to Kernel */
+ssize_t
 tap_write(int tapfd, void *buf, uint32_t len)
 {
     return write(tapfd, buf, len);
 }
 
-size_t
+/* Send buf to descsock driver */
+ssize_t
 tap_send(int tapfd, void *buf, uint32_t len)
 {
     dsk_ifh_fields_t ifh;
@@ -409,9 +351,73 @@ tap_send(int tapfd, void *buf, uint32_t len)
     return descsock_client_send_extended(&ifh, buf, len, 0);
     //return descsock_client_send(buf, len, 0);
 }
-size_t
+
+/* Receive buf from descsock driver */
+ssize_t
 tap_recv(int tapfd, void *buf, uint32_t len)
 {
     /* Consume 32 packets per poll */
     return descsock_client_recv(buf, DESCSOCK_CLIENT_BUF_SIZE, 0);
+}
+
+extern char *optarg;
+
+/* Parse command line user args to build config for tenant */
+static bool
+init_conf(int sys_argc, char **sys_argv, descsock_client_spec_t *client)
+{
+    int c;
+    int long_idx  = 1;
+
+    if(sys_argc <= 4) {
+        printf("\n");
+        sys_usage();
+        return false;
+    }
+
+    /* set dma path and master socket path */
+    snprintf(client->master_socket_path, DESCSOCK_CLIENT_PATHLEN, "%s", MASTER_SOCKET_PATH);
+    snprintf(client->dma_shmem_path, DESCSOCK_CLIENT_PATHLEN, "%s", HUGEPAGES_PATH);
+
+    do {
+        c = getopt_long(sys_argc, sys_argv, "", long_opt, &long_idx);
+
+        switch(c) {
+            case FLAG_SVC_ID:
+                client->svc_id = atoi(optarg);
+                if(client->svc_id < 0) {
+                    printf("Bad serviceid for tenant\n");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            case FLAG_TENANT_NAME:
+                snprintf(client->tenant_name, DESCSOCK_CLIENT_PATHLEN, "%s", optarg);
+                break;
+            case FLAG_TAP_IP:
+                strcpy(tenant_conf.ip, optarg);
+                break;
+            case FLAG_TAP_NETMASK:
+                strcpy(tenant_conf.netmask, optarg);
+                break;
+            case 'h':
+            case '?':
+            case ':':
+                printf("\n");
+                sys_usage();
+                return (false);
+        }
+
+
+    } while(c != -1);
+
+    return true;
+}
+
+static void
+sys_usage()
+{
+    const char *unix_usage =
+        "usage: ./tap_tenant --tenant-name=name --svc_id=9  --tenant-ip=1.2.3.4 --tenant-netmask=255.255.255.255\n";
+
+    printf(unix_usage);
 }

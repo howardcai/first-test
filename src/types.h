@@ -50,4 +50,13 @@ typedef unsigned short vlan_t;
 
 typedef int file_t;
 
+/*
+ * Static assertion.
+ */
+#ifndef STATIC_ASSERT
+#define STATIC_ASSERT(expr)                             \
+    extern char STATIC_ASSERTION[1];                    \
+    extern char STATIC_ASSERTION[(expr) ? 1 : 2]
+#endif /* STATIC_ASSERT */
+
 #endif /* _TYPES_H */

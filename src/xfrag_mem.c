@@ -21,6 +21,7 @@
 #include "types.h"
 #include "sys.h"
 #include "xfrag_mem.h"
+#include "descsock_client.h"
 
 /*
  * Most of this logic comes from TMM's Xbuf API
@@ -79,6 +80,10 @@ xfrag_pool_init(void *pool_base, UINT64 pool_len, int num_of_bufs)
         void *rawbytes = rawbase + (XFRAG_SIZE * i);
         assert((UINT64)rawbytes + XFRAG_SIZE <= (UINT64)rawbase + sz);
         xf->data = rawbytes;
+        /*
+         * Check for mod 4 alignment
+         */
+        is_4b_aligned((UINT64)xf->data);
 
         //xxx: add stats here
         /* Half of bufs are used as Rx DMA bufs and the other half for Tx DMA bufs */
@@ -188,4 +193,15 @@ int xfrag_pool_avail_count()
 {
 
     return xfrag_stats.xfrag_tx_free;
+}
+
+/* Simple check for 4B alignment */
+void
+is_4b_aligned(UINT64 buf)
+{
+    uint8_t aligned_4b =  (buf & 3) == 0;
+
+    if(!aligned_4b) {
+        descsock_client_stats.not4b++;
+    }
 }

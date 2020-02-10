@@ -46,4 +46,6 @@ void xfrag_free(struct xfrag *xf, bool rx);
 
 int xfrag_pool_avail_count(void);
 
+void is_4b_aligned(UINT64 buf);
+
 #endif

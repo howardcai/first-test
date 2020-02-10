@@ -106,6 +106,8 @@ typedef struct {
      * (as a result of calling descsoc_send()).
      */
     uint64_t    tx_bytes_out;
+    /* not 4b alinged buffers */
+    uint64_t      not4b; 
 
 } descsock_client_stats_t;
 
