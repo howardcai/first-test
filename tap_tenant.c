@@ -177,6 +177,8 @@ int main(int argc, char *argv[]) {
             descsock_client_print_buf(rxbuf, read);
             /* Write data to tap interface */
             tap_write(tapfd, rxbuf, read);
+            printf("Receiving buf\n");
+            descsock_client_print_buf(rxbuf, read);
 
             free(rxbuf);
         }

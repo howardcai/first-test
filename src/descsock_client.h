@@ -26,13 +26,21 @@ extern "C" {
 
 #define DESCSOCK_CLIENT_FAILED      -1
 #define DESCSOCK_CLIENT_SUCCESS     1
+
+/* Constant to idicate if a buf is not big enough to hold packet data*/
+#define DSK_FLAG_RXBUF_SMALL        -99
+/*
+ * General driver flags to indicate state while reading or writing packet data
+ */
+#define DSK_FLAG_TRUNCATE_PKT			0x00000001 /* Truncate packet per users request, discard rest of packet */
+
 /*
  * Maximum length of a file path parameter or field used with this library.
  */
 #define DESCSOCK_CLIENT_PATHLEN    512
 #define DESCSOCK_CLIENT_BUF_SIZE   2048
 
-/*
+/*S
  * ======================= GENERAL USAGE ========================
  *
  *  1)  Call descsock_client_open() with an descsock_client_spec_t defining
@@ -197,6 +205,7 @@ int descsock_client_poll(int event_mask);
  *
  * If errno is EWOULDBLOCK, and the DESCSOCK_NONBLOCK flag is set, then there is
  * back-pressure on the transmit descriptor socket (no room to send).
+ * User must set DSK_FLAG_TRUNCATE_PKT flag if willing to receive packets with size smaller then requested
  */
 ssize_t descsock_client_send(void *buf, const uint64_t len, const int flags);
 

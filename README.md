@@ -20,14 +20,13 @@ make example
 
 2)  Use `descsock_poll()` or `descsock_send()` or `descsock_recv()`, depending on
    the blocking / nonblocking requirement of your program's IO
-   model, to check for, send, and receive Ethernet frames,
-   respectively.
+   model, to check for, send, and receive Ethernet frames, respectively. 
 
 3)  Call `descsock_close()` to terminate the client connection with the DMA Agent
 ***
 <br />
 
-**Structure containing hugepages path, master socket path and svc id**
+**Structure containing hugepages path, master socket path, svc id and tenant name**
 ```
 typedef struct {
     /*
@@ -48,6 +47,11 @@ typedef struct {
      * this client with.
      */
     int     svc_id;
+    /*
+     * Confd tenant name
+     */
+    char    tenant_name[DESCSOCK_CLIENT_PATHLEN];
+
 } descsock_client_spec_t;
 
 
@@ -75,7 +79,7 @@ Only a **single SEP** is opened, and only Rx/Tx QoS 0 on that SEP will be operat
 As a result of calling this function, the client library creates a new thread in the caller's  context which manages the client's SEP,
 providing empty buffer descriptors to the DMA Agent and buffering returned laden descriptors until the user calls _descsock_recv()_,
 as well as sending buffers supplied in _descsock_send()_.
-Returns 0 on success, -1 on failure and errno will be set appropriately.  
+Returns 0 on success, -1 on failure and errno will be set appropriately.
 `int descsock_open(descksock_client_spec_t * const spec, const int flags);`
 ***
 <br />
@@ -114,14 +118,14 @@ worke thread (no data to recv).
 
 This is to provide a conceptual analogue to fnctl on a socket. Currently no
 commands _(@cmd)_ are implemented, but this is defined for future uses like setting advanced options, etc, as a general way to achieve mostly
-backwards-compatible / non-breaking extensions to the API. Returns 0 on success, -1 on failure and errno will be set appropriately.  
+backwards-compatible / non-breaking extensions to the API. Returns 0 on success, -1 on failure and errno will be set appropriately.
 `int descsock_cntl(const int cmd, ...);`
 ***
 <br />
 <br />
 
 This cleanly closes the connection to the DMA Agent associated with this process / library worker thread, unmaps any shared memory, and frees any
-internal resources. Returns 0 on success, -1 on failure and errno will be set appropriately.  
+internal resources. Returns 0 on success, -1 on failure and errno will be set appropriately.
 `int descsock_close(void);`
 <br />
 <br />

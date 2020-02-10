@@ -142,12 +142,12 @@ descsock_client_send(void *buf, const uint64_t len, const int flags)
 
 /*
  * Receive a packet into buf
- * Returns number of bytes read, -1 on failure
+ * Returns number of bytes read, -1 if the provided buf is not big enough to hold a packet
  */
 ssize_t
 descsock_client_recv(void *buf, const uint64_t len, const int flags)
 {
-    int read_bytes = descsock_recv(buf, DESCSOCK_CLIENT_BUF_SIZE, 0);
+    int read_bytes = descsock_recv(buf, len, 0);
     if(read_bytes != 0) {
         descsock_client_stats.rx_bytes_out += read_bytes;
         descsock_client_stats.rx_packets_out++;
