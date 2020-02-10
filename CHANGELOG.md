@@ -2,6 +2,20 @@
 
 <!--- next entry here -->
 
+## 1.4.1
+2020-02-10
+
+### Fixes
+
+- read only n bytes from client (fe86bfb54a018ac3cfb0bf755befb6cfea89486d)
+- read only n amount of bytes per client request (3207ff03977da8c1495da66d30b5347e9e3885c3)
+- read only n amount of bytes per client request (4337adbaea1a6805908788e53c077afa562a536c)
+- Adding check to make sure provided buf is big enough for a packet to be written to (4a79b08e9b0d7a06d905e0e598a220104b633c02)
+- add white space to readme file (467247adc46492fd12e3ba43c26ea587fa1374ef)
+- update readme file (c22f77b06c7f71164d551d76d4ba8d81d7674ffc)
+- Added buf too-small constant (57820a8609bb2086fc60c1c654c0b44a17dabb13)
+- added a unique hugepages mount point for every tenant (c5ec9e658678dae08d1f61e8b72398c5d75a2e67)
+
 ## 1.4.0
 2020-01-29
 
