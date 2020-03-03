@@ -28,8 +28,8 @@
 
 
 static bool init_conf(int argc, char **argv, descsock_client_spec_t *tenant_conf);
-static void sys_usage();static
-void descsock_client_print_buf(void * buf, int buf_len);
+static void sys_usage();
+static void descsock_client_print_buf(void * buf, int buf_len);
 static int tap_open(const char *name, int mtu);
 static void tap_fill_macaddr(int fd, uint8_t *mac);
 
