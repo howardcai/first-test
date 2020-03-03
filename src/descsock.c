@@ -397,7 +397,7 @@ err_out:
 
 /*
  * Returns number of bytes read,
- * Returns 0 if there are no packets, 
+ * Returns 0 if there are no packets,
  * Returns DSK_FLAG_RXBUF_SMALL if the provided buf is too small to receive a packet
  */
 int
@@ -445,6 +445,57 @@ out:
     return ret;
 }
 
+int descsock_recv_extended(dsk_ifh_fields_t *ifh, void *buf, const uint64_t len, const int flags)
+{
+    struct packet *pkt;
+    bool rx = true;
+    int ret = 0;
+
+    if(FIXEDQ_EMPTY(sc->rx_queue.rx_pkt_queue)) {
+        goto out;
+    }
+
+    /* Dequeue packet */
+    pkt = FIXEDQ_HEAD(sc->rx_queue.rx_pkt_queue);
+
+    /* Grab ifh header info from packet and copy it to clients ifh request */
+    ifh->sid = pkt->ifh.did;
+    ifh->sep = pkt->ifh.sep;
+    ifh->svc = pkt->ifh.svc;
+    ifh->qos_tier = pkt->ifh.qos_tier;
+    ifh->nti = pkt->ifh.nti;
+    ifh->dm = pkt->ifh.dm;
+
+    if((pkt->len > len)) {
+        /* silently truncate packet if user requests it */
+        if(flags & DSK_FLAG_TRUNCATE_PKT) {
+            memcpy(buf, pkt->xf_first->data, len);
+            ret = len;
+        }
+        else {
+            /* print out error log, leave packet in queue */
+            DESCSOCK_LOG("Provided buf %p with len %ld is not big enough to hold packet with size %d",
+                buf, len, pkt->len);
+            ret = DSK_FLAG_RXBUF_SMALL;
+            goto out;
+        }
+    }
+    else {
+        memcpy(buf, pkt->xf_first->data, pkt->len);
+        ret = pkt->len;
+    }
+
+    /* Recycle DMA bufs  */
+    FIXEDQ_REMOVE(sc->rx_queue.rx_pkt_queue);
+    xfrag_free(pkt->xf_first, rx);
+    packet_free(pkt);
+
+    DESCSOCK_DEBUGF("received pkt %p with buf %p %lld len %d\n",
+        pkt, pkt->xf_first->data, (UINT64)pkt->xf_first->data, pkt->len);
+
+out:
+    return ret;
+}
 /* Clean descsock state, free all mem */
 err_t
 descsock_teardown()
@@ -551,6 +602,12 @@ descsock_poll(int mask) {
 
             /* XXX: figure out the correct packet len */
             pkt->len = xf->len;
+            pkt->ifh.did = desc->did;
+            pkt->ifh.dm = desc->dm;
+            pkt->ifh.nti = desc->nti;
+            pkt->ifh.qos_tier = 0;
+            pkt->ifh.sep = desc->sep;
+            pkt->ifh.svc = desc->svc;
 
             /* Adavance consumer index on return ring */
             rx_receive_advance_consumer(tier);

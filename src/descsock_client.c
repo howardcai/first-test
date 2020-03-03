@@ -185,3 +185,15 @@ descsock_client_send_extended(dsk_ifh_fields_t *ifh, void *buf, const uint64_t l
 
     return written;
 }
+
+ssize_t
+descsock_client_recv_extended(dsk_ifh_fields_t *ifh, void *buf, const uint64_t len, const int flags)
+{
+    if(ifh == NULL) {
+        printf("ifh is null\n");
+        return -1;
+    }
+
+    return descsock_recv_extended(ifh, buf, len, flags);
+
+}

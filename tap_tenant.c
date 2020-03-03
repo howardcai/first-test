@@ -28,7 +28,7 @@
 
 
 static bool init_conf(int argc, char **argv, descsock_client_spec_t *tenant_conf);
-static void sys_usage();static 
+static void sys_usage();static
 void descsock_client_print_buf(void * buf, int buf_len);
 static int tap_open(const char *name, int mtu);
 static void tap_fill_macaddr(int fd, uint8_t *mac);
@@ -46,7 +46,7 @@ static ssize_t tap_send(int tapfd, void *buf, uint32_t len);
 static ssize_t tap_recv(int tapfd, void *buf, uint32_t len);
 
 
-/* 
+/*
  * TAP tenant config
  */
 struct tenant_conf {
@@ -175,10 +175,9 @@ int main(int argc, char *argv[]) {
             read = tap_recv(tapfd, rxbuf, 2048);
             printf("Receiving buf\n");
             descsock_client_print_buf(rxbuf, read);
+
             /* Write data to tap interface */
             tap_write(tapfd, rxbuf, read);
-            printf("Receiving buf\n");
-            descsock_client_print_buf(rxbuf, read);
 
             free(rxbuf);
         }
@@ -356,8 +355,16 @@ tap_send(int tapfd, void *buf, uint32_t len)
 ssize_t
 tap_recv(int tapfd, void *buf, uint32_t len)
 {
+    int ret = 0;
     /* Consume 32 packets per poll */
-    return descsock_client_recv(buf, DESCSOCK_CLIENT_BUF_SIZE, 0);
+    dsk_ifh_fields_t ifh = { 0 };
+
+    //return descsock_client_recv(buf, DESCSOCK_CLIENT_BUF_SIZE, 0);
+    ret = descsock_client_recv_extended(&ifh, buf, DESCSOCK_CLIENT_BUF_SIZE, 0);
+    printf("sid=%d sep=%d svc=%d qos=%d nti=%d dm=%d\n",
+        ifh.sid, ifh.sep, ifh.svc, ifh.qos_tier, ifh.nti, ifh.dm);
+
+    return ret;
 }
 
 extern char *optarg;
@@ -417,7 +424,7 @@ static void
 sys_usage()
 {
     const char *unix_usage =
-        "usage: ./tap_tenant --tenant-name=name --svc_id=9  --tenant-ip=1.2.3.4 --tenant-netmask=255.255.255.255\n";
+        "usage: ./tap_tenant --tenant-name=name --svc_id=99  --tenant-ip=192.168.99.99 --tenant-netmask=255.255.255.0\n";
 
     printf(unix_usage);
 }

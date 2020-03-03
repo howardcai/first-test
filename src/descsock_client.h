@@ -107,7 +107,7 @@ typedef struct {
      */
     uint64_t    tx_bytes_out;
     /* not 4b alinged buffers */
-    uint64_t      not4b; 
+    uint64_t      not4b;
 
 } descsock_client_stats_t;
 
@@ -214,6 +214,7 @@ ssize_t descsock_client_send(void *buf, const uint64_t len, const int flags);
  */
 typedef struct {
     uint32_t    did;
+    uint32_t    sid;
     uint32_t    sep;
     uint32_t    svc;
     uint32_t    qos_tier;
@@ -240,6 +241,8 @@ ssize_t descsock_client_send_extended(dsk_ifh_fields_t *ifh, void *buf, const ui
  * worke thread (no data to recv).
  */
 ssize_t descsock_client_recv(void *buf, const uint64_t len, const int flags);
+
+ssize_t descsock_client_recv_extended(dsk_ifh_fields_t *ifh, void *buf, const uint64_t len, const int flags);
 
 
 /*
