@@ -262,6 +262,7 @@ BOOL descsock_poll(int event_mask);
 int descsock_init(int argc, char *dma_shmem_path, char *mastersocket, int svc_id, char *tenant_name);
 int descsock_send(dsk_ifh_fields_t *ifh, void *buf, UINT32 len);
 int descsock_recv(void *buf, UINT32 len, int flag);
+int descsock_recv_extended(dsk_ifh_fields_t *ifh, void *buf, const uint64_t len, const int flags);
 BOOL descsock_state_full(void);
 BOOL descsock_state_err(void);
 

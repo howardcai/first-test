@@ -16,11 +16,20 @@
 
 
 #include <sys/queue.h>
+#include <stdint.h>
 
 #include "types.h"
 #include "xfrag_mem.h"
 #include "err.h"
 
+struct ifh_header {
+    uint32_t    did;
+    uint32_t    sep;
+    uint32_t    svc;
+    uint32_t    qos_tier;
+    uint32_t    nti;
+    uint32_t    dm;
+};
 struct packet {
     SLIST_ENTRY(packet) next;
     UINT16              magic;
@@ -29,6 +38,7 @@ struct packet {
     vlan_t              vlan_tag;
     UINT64              flags;
     /* Add more fields as we go  */
+    struct ifh_header   ifh;
 };
 
 err_t packet_init_pool(int num_of_pkts);
