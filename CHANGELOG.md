@@ -2,6 +2,14 @@
 
 <!--- next entry here -->
 
+## 1.5.0
+2020-03-18
+
+### Features
+
+- convery rx return ifh data to client (c670b3111e61850026b0b719d1e9496e1388f522)
+- convery rx return ifh data to client (3bd2e0d82a1d9d2d7a36fc83067ef914c024ee79)
+
 ## 1.4.1
 2020-02-10
 
